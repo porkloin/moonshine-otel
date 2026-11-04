@@ -1,0 +1,631 @@
+{
+  "uid": "moonshine-compare",
+  "title": "Moonshine: run comparison",
+  "description": "Two runs side by side. Pick a time range that covers both. For a verdict with noise thresholds, use `moonshine-otel compare`.",
+  "tags": [
+    "moonshine",
+    "moonshine-otel"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "run_a",
+        "label": "A (baseline)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(moonshine_frames_total, run_id)",
+          "refId": "run_a"
+        },
+        "definition": "label_values(moonshine_frames_total, run_id)",
+        "refresh": 2,
+        "sort": 2,
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "name": "run_b",
+        "label": "B (candidate)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(moonshine_frames_total, run_id)",
+          "refId": "run_b"
+        },
+        "definition": "label_values(moonshine_frames_total, run_id)",
+        "refresh": 2,
+        "sort": 2,
+        "multi": false,
+        "includeAll": false
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Headline: B relative to A (whole runs, captured frames)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "id": 1
+    },
+    {
+      "type": "stat",
+      "title": "\u0394 total p50",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 * ((histogram_quantile(0.5, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_b\", frame_kind=~\"delta|key\"}[$__range])))) - (histogram_quantile(0.5, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range]))))) / (histogram_quantile(0.5, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range]))))",
+          "legendFormat": "",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "text",
+                "value": -2
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 6,
+        "h": 4
+      },
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "\u0394 total p99",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 * ((histogram_quantile(0.99, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_b\", frame_kind=~\"delta|key\"}[$__range])))) - (histogram_quantile(0.99, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range]))))) / (histogram_quantile(0.99, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range]))))",
+          "legendFormat": "",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "text",
+                "value": -2
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 6,
+        "h": 4
+      },
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "\u0394 interval p99 (stutter)",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 * ((histogram_quantile(0.99, sum(last_over_time(moonshine_frame_interval_seconds{run_id=\"$run_b\"}[$__range])))) - (histogram_quantile(0.99, sum(last_over_time(moonshine_frame_interval_seconds{run_id=\"$run_a\"}[$__range]))))) / (histogram_quantile(0.99, sum(last_over_time(moonshine_frame_interval_seconds{run_id=\"$run_a\"}[$__range]))))",
+          "legendFormat": "",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "text",
+                "value": -2
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 6,
+        "h": 4
+      },
+      "id": 4
+    },
+    {
+      "type": "stat",
+      "title": "Pacing miss A \u2192 B",
+      "description": "Difference in percentage points.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 * (sum(last_over_time(moonshine_frames_pacing_miss_total{run_id=\"$run_b\"}[$__range])) / sum(last_over_time(moonshine_frames_total{run_id=\"$run_b\", frame_kind=~\"delta|key\"}[$__range]))) - 100 * (sum(last_over_time(moonshine_frames_pacing_miss_total{run_id=\"$run_a\"}[$__range])) / sum(last_over_time(moonshine_frames_total{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range])))",
+          "legendFormat": "",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "text",
+                "value": -0.05
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 1,
+        "w": 6,
+        "h": 4
+      },
+      "id": 5
+    },
+    {
+      "type": "barchart",
+      "title": "Total latency quantiles: A vs B",
+      "description": "Whole-run quantile curve from native histograms. Exact values: `moonshine-otel compare`.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "label_replace(histogram_quantile(0.5, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p50\", \"\", \"\") or label_replace(histogram_quantile(0.75, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p75\", \"\", \"\") or label_replace(histogram_quantile(0.9, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p90\", \"\", \"\") or label_replace(histogram_quantile(0.95, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p95\", \"\", \"\") or label_replace(histogram_quantile(0.99, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p99\", \"\", \"\") or label_replace(histogram_quantile(0.999, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p99.9\", \"\", \"\")",
+          "legendFormat": "A",
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "label_replace(histogram_quantile(0.5, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_b\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p50\", \"\", \"\") or label_replace(histogram_quantile(0.75, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_b\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p75\", \"\", \"\") or label_replace(histogram_quantile(0.9, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_b\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p90\", \"\", \"\") or label_replace(histogram_quantile(0.95, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_b\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p95\", \"\", \"\") or label_replace(histogram_quantile(0.99, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_b\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p99\", \"\", \"\") or label_replace(histogram_quantile(0.999, sum(last_over_time(moonshine_frame_duration_seconds{run_id=\"$run_b\", frame_kind=~\"delta|key\"}[$__range]))), \"q\", \"p99.9\", \"\", \"\")",
+          "legendFormat": "B",
+          "refId": "B",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "q",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true
+            },
+            "renameByName": {
+              "Value #A": "A ($run_a)",
+              "Value #B": "B ($run_b)"
+            },
+            "indexByName": {
+              "q": 0
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "q",
+        "orientation": "vertical",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 10
+      },
+      "id": 6
+    },
+    {
+      "type": "table",
+      "title": "Per-stage p50 / p99: A vs B",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (stage) (last_over_time(moonshine_frame_stage_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range])))",
+          "legendFormat": "",
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (stage) (last_over_time(moonshine_frame_stage_duration_seconds{run_id=\"$run_a\", frame_kind=~\"delta|key\"}[$__range])))",
+          "legendFormat": "",
+          "refId": "B",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (stage) (last_over_time(moonshine_frame_stage_duration_seconds{run_id=\"$run_b\", frame_kind=~\"delta|key\"}[$__range])))",
+          "legendFormat": "",
+          "refId": "C",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (stage) (last_over_time(moonshine_frame_stage_duration_seconds{run_id=\"$run_b\", frame_kind=~\"delta|key\"}[$__range])))",
+          "legendFormat": "",
+          "refId": "D",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "stage",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true
+            },
+            "renameByName": {
+              "Value #A": "A p50",
+              "Value #B": "A p99",
+              "Value #C": "B p50",
+              "Value #D": "B p99"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "binary",
+            "alias": "\u0394 p99",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "B p99"
+                }
+              },
+              "operator": "-",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "A p99"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 5
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "\u0394 p99"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "text",
+                      "value": -5e-05
+                    },
+                    {
+                      "color": "red",
+                      "value": 5e-05
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 10
+      },
+      "id": 7
+    },
+    {
+      "type": "table",
+      "title": "Recent bench runs (from bench.run spans)",
+      "description": "Exact per-run summary medians. Click a trace ID to open the run in Tempo.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "tableType": "spans",
+          "limit": 50,
+          "spss": 1,
+          "query": "{ name = \"bench.run\" } | select(span.run_id, span.bench.codec, span.bench.resolution, span.bench.target_fps, span.result.latency.captured.total.p50, span.result.latency.captured.total.p99, span.result.interval.p99, span.result.pacing_miss_pct, span.result.effective_fps, span.result.valid, resource.moonshine.rev, resource.label.branch)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 10
+      },
+      "id": 8
+    }
+  ],
+  "links": [
+    {
+      "title": "Moonshine",
+      "type": "dashboards",
+      "tags": [
+        "moonshine-otel"
+      ],
+      "asDropdown": true
+    }
+  ]
+}

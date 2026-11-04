@@ -1,0 +1,32 @@
+[workspace]
+members = ["exporter", "cli"]
+default-members = ["exporter"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0" # x-release-please-version
+edition = "2024"
+license = "BSD-2-Clause"
+repository = "https://github.com/porkloin/moonshine-otel"
+rust-version = "1.88"
+
+[workspace.dependencies]
+moonshine-otel-exporter = { path = "exporter" }
+# The OpenTelemetry crates are released as a set; keep them pinned together.
+opentelemetry = "0.33.0"
+opentelemetry_sdk = "0.33.0"
+opentelemetry-otlp = "0.33.0"
+opentelemetry-proto = { version = "0.33.0", default-features = false }
+anyhow = "1.0"
+clap = { version = "4.6", features = ["derive", "env"] }
+gethostname = "1.1.0"
+hdrhistogram = { version = "7.6.0", default-features = false }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
+csv = "1.4.0"
+tokio = "1.53"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+[profile.release]
+debug = "line-tables-only"

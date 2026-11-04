@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s
+
+otlp:
+  # Low-cardinality resource attributes worth filtering on; everything else stays on
+  # target_info.
+  promote_resource_attributes:
+    - gpu.model
+    - host.name
+    - moonshine.rev
+
+storage:
+  tsdb:
+    # Bench runs are pushed as they happen, but tolerate a little collector batching skew.
+    out_of_order_time_window: 5m
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

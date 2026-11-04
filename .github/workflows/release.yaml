@@ -1,0 +1,65 @@
+name: Release
+
+# release-please keeps a release pull request open from the conventional commits on main. Merging it tags the
+# release, and the build job attaches the tarball. A release made with GITHUB_TOKEN doesn't trigger other
+# workflows, so the build lives here. workflow_dispatch rebuilds the tarball for an existing tag.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to rebuild (e.g. v0.1.0)
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release-please:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    outputs:
+      created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+
+  build:
+    needs: release-please
+    if: always() && (needs.release-please.outputs.created == 'true' || github.event_name == 'workflow_dispatch')
+    # Pinned so the release binary's glibc requirement doesn't move.
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ needs.release-please.outputs.tag || github.event.inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build --release -p moonshine-otel -p moonshine-otel-exporter --bins
+
+      - name: Strip
+        run: strip ./target/release/moonshine-otel ./target/release/moonshine-otel-relay
+
+      # Paths relative to the home directory (`tar -x -C ~`), files only, so extracting never changes the
+      # permissions of an existing ~/.local or ~/.config. No version in the name, so
+      # releases/latest/download/moonshine-otel-linux-amd64.tar.zst always gets the newest.
+      - name: Package
+        run: |
+          STAGE="$RUNNER_TEMP/moonshine-otel"
+          DESTDIR="$STAGE" ./deploy/stage.sh ./target/release
+          (cd "$STAGE" && find .local .config -type f | sort | tar --zstd -cf "$GITHUB_WORKSPACE/moonshine-otel-linux-amd64.tar.zst" --no-recursion -T -)
+
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" ./moonshine-otel-linux-amd64.tar.zst --clobber --repo "$GITHUB_REPOSITORY"

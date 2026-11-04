@@ -1,0 +1,18 @@
+# Records every stream of the Moonshine running as this user, from its statistics socket, into
+# ~/moonshine-otel-results, and sends them to an OpenTelemetry collector when one is reachable: localhost:4317 by
+# default (moonshine-otel-stack.target runs one), or OTEL_EXPORTER_OTLP_ENDPOINT from the settings file below.
+# Starts no containers.
+#   systemctl --user enable --now moonshine-otel
+[Unit]
+Description=moonshine-otel: record Moonshine's streams
+After=moonshine-otel-collector.service
+
+[Service]
+# OTEL_EXPORTER_OTLP_ENDPOINT, or the stack's MOONSHINE_OTEL_OTLP_GRPC_PORT.
+EnvironmentFile=-%h/.config/moonshine-otel/settings.env
+ExecStart=%h/.local/bin/moonshine-otel watch --results-dir %h/moonshine-otel-results
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

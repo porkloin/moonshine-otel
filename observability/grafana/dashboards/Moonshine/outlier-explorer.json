@@ -1,0 +1,248 @@
+{
+  "uid": "moonshine-outliers",
+  "title": "Moonshine: outlier explorer",
+  "description": "Find spike frames by stage in Tempo.",
+  "tags": [
+    "moonshine",
+    "moonshine-otel"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "run_id",
+        "label": "Run",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(moonshine_frames_total, run_id)",
+          "refId": "run_id"
+        },
+        "definition": "label_values(moonshine_frames_total, run_id)",
+        "refresh": 2,
+        "sort": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "stage",
+        "label": "Stage",
+        "type": "custom",
+        "query": "total,channel_wait,import,convert,submit,consumer_queue,encode_wait,packetize,send,unaccounted,interval",
+        "current": {
+          "text": "total",
+          "value": "total"
+        },
+        "options": [
+          {
+            "text": "total",
+            "value": "total",
+            "selected": true
+          },
+          {
+            "text": "channel_wait",
+            "value": "channel_wait",
+            "selected": false
+          },
+          {
+            "text": "import",
+            "value": "import",
+            "selected": false
+          },
+          {
+            "text": "convert",
+            "value": "convert",
+            "selected": false
+          },
+          {
+            "text": "submit",
+            "value": "submit",
+            "selected": false
+          },
+          {
+            "text": "consumer_queue",
+            "value": "consumer_queue",
+            "selected": false
+          },
+          {
+            "text": "encode_wait",
+            "value": "encode_wait",
+            "selected": false
+          },
+          {
+            "text": "packetize",
+            "value": "packetize",
+            "selected": false
+          },
+          {
+            "text": "send",
+            "value": "send",
+            "selected": false
+          },
+          {
+            "text": "unaccounted",
+            "value": "unaccounted",
+            "selected": false
+          },
+          {
+            "text": "interval",
+            "value": "interval",
+            "selected": false
+          }
+        ],
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "name": "min_us",
+        "label": "At least (\u00b5s)",
+        "type": "textbox",
+        "query": "10000",
+        "current": {
+          "text": "10000",
+          "value": "10000"
+        }
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "table",
+      "title": "Outlier frames where $stage \u2265 $min_us \u00b5s",
+      "description": "Frame spans (outliers by default; all frames with --trace-mode all). Open a trace to see the lead_up event with the 8 preceding frames.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "refId": "A",
+          "queryType": "traceql",
+          "tableType": "spans",
+          "limit": 200,
+          "spss": 200,
+          "query": "{ name = \"frame\" && span.run_id =~ \"$run_id\" && span.frame.${stage}_us >= $min_us } | select(span.frame.seq, span.frame.kind, span.frame.total_us, span.frame.interval_us, span.frame.channel_wait_us, span.frame.import_us, span.frame.convert_us, span.frame.submit_us, span.frame.consumer_queue_us, span.frame.encode_wait_us, span.frame.packetize_us, span.frame.send_us, span.frame.unaccounted_us, span.frame.encoded_bytes, span.frame.over_budget, span.frame.pacing_miss, span.frame.cadence_us)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "span.frame.total_us",
+            "desc": true
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 14
+      },
+      "id": 1
+    },
+    {
+      "type": "timeseries",
+      "title": "Outliers per second",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (run_id) (rate(moonshine_frames_over_budget_total{run_id=~\"$run_id\"}[$__rate_interval]))",
+          "legendFormat": "{{run_id}} over budget",
+          "refId": "A",
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (run_id) (rate(moonshine_frames_pacing_miss_total{run_id=~\"$run_id\"}[$__rate_interval]))",
+          "legendFormat": "{{run_id}} pacing miss",
+          "refId": "B",
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 24,
+        "h": 8
+      },
+      "id": 2
+    }
+  ],
+  "links": [
+    {
+      "title": "Moonshine",
+      "type": "dashboards",
+      "tags": [
+        "moonshine-otel"
+      ],
+      "asDropdown": true
+    }
+  ]
+}

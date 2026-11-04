@@ -1,0 +1,25 @@
+# The OpenTelemetry collector moonshine-otel sends to: metrics to Prometheus, traces to Tempo.
+[Unit]
+Description=moonshine-otel: OpenTelemetry collector
+PartOf=moonshine-otel-stack.target
+After=moonshine-otel-prometheus.service moonshine-otel-tempo.service
+
+[Container]
+ContainerName=moonshine-otel-collector
+Image=docker.io/otel/opentelemetry-collector-contrib:0.161.0
+Exec=--config=/etc/otelcol/config.yaml
+Volume=%h/.local/share/moonshine-otel/observability/otelcol.yaml:/etc/otelcol/config.yaml:ro,Z
+Network=moonshine-otel.network
+PublishPort=127.0.0.1:${MOONSHINE_OTEL_OTLP_GRPC_PORT}:4317
+PublishPort=127.0.0.1:${MOONSHINE_OTEL_OTLP_HTTP_PORT}:4318
+
+[Service]
+# Published port; override it in ~/.config/moonshine-otel/settings.env.
+Environment=MOONSHINE_OTEL_OTLP_GRPC_PORT=4317
+Environment=MOONSHINE_OTEL_OTLP_HTTP_PORT=4318
+EnvironmentFile=-%h/.config/moonshine-otel/settings.env
+Restart=on-failure
+TimeoutStartSec=900
+
+[Install]
+WantedBy=moonshine-otel-stack.target

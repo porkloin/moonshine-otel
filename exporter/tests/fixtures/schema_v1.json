@@ -1,0 +1,1079 @@
+{
+  "schema_version": 1,
+  "tool": "moonshine-otel",
+  "tool_version": "0.0.0",
+  "created_at": "2026-09-24T10:15:10Z",
+  "runs": [
+    {
+      "run_id": "20260924-101500-abcd",
+      "started_at": "2026-09-24T10:15:00Z",
+      "identity": {
+        "build": {
+          "moonshine_source": null,
+          "moonshine_rev": "5a83892a0c86a22e5d74d7a816b6df2f8e06f751",
+          "moonshine_describe": null,
+          "moonshine_dirty": null,
+          "moonshine_version": null,
+          "tool_version": null,
+          "rustc_version": null,
+          "profile": "release"
+        },
+        "host": {
+          "hostname": null,
+          "os": null,
+          "kernel": null,
+          "cpu_model": null,
+          "cpu_governor": null,
+          "energy_performance_preference": null,
+          "platform_profile": null,
+          "on_ac_power": null
+        },
+        "gpu": {
+          "vendor": null,
+          "model": "Example GPU",
+          "pci_id": null,
+          "kernel_driver": null,
+          "vulkan_driver": null,
+          "vulkan_device": null,
+          "vulkan_driver_version": null,
+          "mesa_version": null,
+          "power_level": null
+        },
+        "labels": {
+          "branch": "main"
+        }
+      },
+      "config": {
+        "command": [
+          "vkcube"
+        ],
+        "width": 1920,
+        "height": 1080,
+        "target_fps": 60,
+        "codec": "h264",
+        "bitrate": 20000000,
+        "hdr": false,
+        "chroma": "yuv420",
+        "warmup_s": 4.0,
+        "duration_s": 2.0,
+        "iterations": 1
+      },
+      "iterations": [
+        {
+          "index": 0,
+          "started_at": "2026-09-24T10:15:00Z",
+          "summary": {
+            "frames": {
+              "delta": 119,
+              "key": 1,
+              "idr_reencode": 0,
+              "warmup_discarded": 1,
+              "kind_inferred": 120
+            },
+            "duration_s": 1.983373,
+            "target_fps": 60,
+            "effective_fps": 59.99880002399952,
+            "fps_ratio": 0.999980000399992,
+            "mbps": 20.242445571256642,
+            "encoded_bytes": 5018540,
+            "over_budget": {
+              "count": 0,
+              "pct": 0.0
+            },
+            "pacing_miss": {
+              "count": 0,
+              "pct": 0.0
+            },
+            "lagged": 0,
+            "dropped": null,
+            "unaccounted_negative": 0,
+            "unaccounted_min": 0.0,
+            "latency": {
+              "captured": {
+                "channel_wait": {
+                  "count": 120,
+                  "mean": 42.975,
+                  "stddev": 2.010234231791576,
+                  "min": 40.0,
+                  "p50": 43.0,
+                  "p90": 46.0,
+                  "p95": 46.0,
+                  "p99": 46.0,
+                  "p999": 46.0,
+                  "max": 46.0
+                },
+                "consumer_queue": {
+                  "count": 120,
+                  "mean": 15.0,
+                  "stddev": 0.0,
+                  "min": 15.0,
+                  "p50": 15.0,
+                  "p90": 15.0,
+                  "p95": 15.0,
+                  "p99": 15.0,
+                  "p999": 15.0,
+                  "max": 15.0
+                },
+                "convert": {
+                  "count": 120,
+                  "mean": 255.875,
+                  "stddev": 3.7783649461991713,
+                  "min": 250.0,
+                  "p50": 256.0,
+                  "p90": 261.0,
+                  "p95": 262.0,
+                  "p99": 262.0,
+                  "p999": 262.0,
+                  "max": 262.0
+                },
+                "encode_wait": {
+                  "count": 120,
+                  "mean": 2839.5000000000014,
+                  "stddev": 257.2088969430619,
+                  "min": 2400.0,
+                  "p50": 2833.0,
+                  "p90": 3191.0,
+                  "p95": 3239.0,
+                  "p99": 3289.0,
+                  "p999": 3289.0,
+                  "max": 3289.0
+                },
+                "import": {
+                  "count": 120,
+                  "mean": 30.0,
+                  "stddev": 0.0,
+                  "min": 30.0,
+                  "p50": 30.0,
+                  "p90": 30.0,
+                  "p95": 30.0,
+                  "p99": 30.0,
+                  "p999": 30.0,
+                  "max": 30.0
+                },
+                "packetize": {
+                  "count": 120,
+                  "mean": 60.0,
+                  "stddev": 0.0,
+                  "min": 60.0,
+                  "p50": 60.0,
+                  "p90": 60.0,
+                  "p95": 60.0,
+                  "p99": 60.0,
+                  "p999": 60.0,
+                  "max": 60.0
+                },
+                "send": {
+                  "count": 120,
+                  "mean": 25.0,
+                  "stddev": 0.0,
+                  "min": 25.0,
+                  "p50": 25.0,
+                  "p90": 25.0,
+                  "p95": 25.0,
+                  "p99": 25.0,
+                  "p999": 25.0,
+                  "max": 25.0
+                },
+                "submit": {
+                  "count": 120,
+                  "mean": 120.0,
+                  "stddev": 0.0,
+                  "min": 120.0,
+                  "p50": 120.0,
+                  "p90": 120.0,
+                  "p95": 120.0,
+                  "p99": 120.0,
+                  "p999": 120.0,
+                  "max": 120.0
+                },
+                "total": {
+                  "count": 120,
+                  "mean": 3439.5000000000014,
+                  "stddev": 257.2088969430619,
+                  "min": 3000.0,
+                  "p50": 3433.0,
+                  "p90": 3791.0,
+                  "p95": 3839.0,
+                  "p99": 3889.0,
+                  "p999": 3889.0,
+                  "max": 3889.0
+                },
+                "unaccounted": {
+                  "count": 120,
+                  "mean": 66.14999999999998,
+                  "stddev": 4.317889144786682,
+                  "min": 57.0,
+                  "p50": 66.0,
+                  "p90": 72.0,
+                  "p95": 73.0,
+                  "p99": 75.0,
+                  "p999": 75.0,
+                  "max": 75.0
+                }
+              },
+              "delta": {
+                "channel_wait": {
+                  "count": 119,
+                  "mean": 42.99999999999999,
+                  "stddev": 1.9999999999999998,
+                  "min": 40.0,
+                  "p50": 43.0,
+                  "p90": 46.0,
+                  "p95": 46.0,
+                  "p99": 46.0,
+                  "p999": 46.0,
+                  "max": 46.0
+                },
+                "consumer_queue": {
+                  "count": 119,
+                  "mean": 15.0,
+                  "stddev": 0.0,
+                  "min": 15.0,
+                  "p50": 15.0,
+                  "p90": 15.0,
+                  "p95": 15.0,
+                  "p99": 15.0,
+                  "p999": 15.0,
+                  "max": 15.0
+                },
+                "convert": {
+                  "count": 119,
+                  "mean": 255.92436974789914,
+                  "stddev": 3.7554658515883426,
+                  "min": 250.0,
+                  "p50": 256.0,
+                  "p90": 261.0,
+                  "p95": 262.0,
+                  "p99": 262.0,
+                  "p999": 262.0,
+                  "max": 262.0
+                },
+                "encode_wait": {
+                  "count": 119,
+                  "mean": 2843.184873949581,
+                  "stddev": 255.1136166853142,
+                  "min": 2400.0,
+                  "p50": 2845.0,
+                  "p90": 3203.0,
+                  "p95": 3251.0,
+                  "p99": 3289.0,
+                  "p999": 3289.0,
+                  "max": 3289.0
+                },
+                "import": {
+                  "count": 119,
+                  "mean": 30.0,
+                  "stddev": 0.0,
+                  "min": 30.0,
+                  "p50": 30.0,
+                  "p90": 30.0,
+                  "p95": 30.0,
+                  "p99": 30.0,
+                  "p999": 30.0,
+                  "max": 30.0
+                },
+                "packetize": {
+                  "count": 119,
+                  "mean": 60.0,
+                  "stddev": 0.0,
+                  "min": 60.0,
+                  "p50": 60.0,
+                  "p90": 60.0,
+                  "p95": 60.0,
+                  "p99": 60.0,
+                  "p999": 60.0,
+                  "max": 60.0
+                },
+                "send": {
+                  "count": 119,
+                  "mean": 25.0,
+                  "stddev": 0.0,
+                  "min": 25.0,
+                  "p50": 25.0,
+                  "p90": 25.0,
+                  "p95": 25.0,
+                  "p99": 25.0,
+                  "p999": 25.0,
+                  "max": 25.0
+                },
+                "submit": {
+                  "count": 119,
+                  "mean": 120.0,
+                  "stddev": 0.0,
+                  "min": 120.0,
+                  "p50": 120.0,
+                  "p90": 120.0,
+                  "p95": 120.0,
+                  "p99": 120.0,
+                  "p999": 120.0,
+                  "max": 120.0
+                },
+                "total": {
+                  "count": 119,
+                  "mean": 3443.18487394958,
+                  "stddev": 255.11361668531416,
+                  "min": 3000.0,
+                  "p50": 3445.0,
+                  "p90": 3803.0,
+                  "p95": 3851.0,
+                  "p99": 3889.0,
+                  "p999": 3889.0,
+                  "max": 3889.0
+                },
+                "unaccounted": {
+                  "count": 119,
+                  "mean": 66.07563025210084,
+                  "stddev": 4.2587717956970055,
+                  "min": 57.0,
+                  "p50": 66.0,
+                  "p90": 72.0,
+                  "p95": 73.0,
+                  "p99": 74.0,
+                  "p999": 75.0,
+                  "max": 75.0
+                }
+              },
+              "idr_reencode": {
+                "channel_wait": {
+                  "count": 0,
+                  "mean": 0.0,
+                  "stddev": 0.0,
+                  "min": 0.0,
+                  "p50": 0.0,
+                  "p90": 0.0,
+                  "p95": 0.0,
+                  "p99": 0.0,
+                  "p999": 0.0,
+                  "max": 0.0
+                },
+                "consumer_queue": {
+                  "count": 0,
+                  "mean": 0.0,
+                  "stddev": 0.0,
+                  "min": 0.0,
+                  "p50": 0.0,
+                  "p90": 0.0,
+                  "p95": 0.0,
+                  "p99": 0.0,
+                  "p999": 0.0,
+                  "max": 0.0
+                },
+                "convert": {
+                  "count": 0,
+                  "mean": 0.0,
+                  "stddev": 0.0,
+                  "min": 0.0,
+                  "p50": 0.0,
+                  "p90": 0.0,
+                  "p95": 0.0,
+                  "p99": 0.0,
+                  "p999": 0.0,
+                  "max": 0.0
+                },
+                "encode_wait": {
+                  "count": 0,
+                  "mean": 0.0,
+                  "stddev": 0.0,
+                  "min": 0.0,
+                  "p50": 0.0,
+                  "p90": 0.0,
+                  "p95": 0.0,
+                  "p99": 0.0,
+                  "p999": 0.0,
+                  "max": 0.0
+                },
+                "import": {
+                  "count": 0,
+                  "mean": 0.0,
+                  "stddev": 0.0,
+                  "min": 0.0,
+                  "p50": 0.0,
+                  "p90": 0.0,
+                  "p95": 0.0,
+                  "p99": 0.0,
+                  "p999": 0.0,
+                  "max": 0.0
+                },
+                "packetize": {
+                  "count": 0,
+                  "mean": 0.0,
+                  "stddev": 0.0,
+                  "min": 0.0,
+                  "p50": 0.0,
+                  "p90": 0.0,
+                  "p95": 0.0,
+                  "p99": 0.0,
+                  "p999": 0.0,
+                  "max": 0.0
+                },
+                "send": {
+                  "count": 0,
+                  "mean": 0.0,
+                  "stddev": 0.0,
+                  "min": 0.0,
+                  "p50": 0.0,
+                  "p90": 0.0,
+                  "p95": 0.0,
+                  "p99": 0.0,
+                  "p999": 0.0,
+                  "max": 0.0
+                },
+                "submit": {
+                  "count": 0,
+                  "mean": 0.0,
+                  "stddev": 0.0,
+                  "min": 0.0,
+                  "p50": 0.0,
+                  "p90": 0.0,
+                  "p95": 0.0,
+                  "p99": 0.0,
+                  "p999": 0.0,
+                  "max": 0.0
+                },
+                "total": {
+                  "count": 0,
+                  "mean": 0.0,
+                  "stddev": 0.0,
+                  "min": 0.0,
+                  "p50": 0.0,
+                  "p90": 0.0,
+                  "p95": 0.0,
+                  "p99": 0.0,
+                  "p999": 0.0,
+                  "max": 0.0
+                },
+                "unaccounted": {
+                  "count": 0,
+                  "mean": 0.0,
+                  "stddev": 0.0,
+                  "min": 0.0,
+                  "p50": 0.0,
+                  "p90": 0.0,
+                  "p95": 0.0,
+                  "p99": 0.0,
+                  "p999": 0.0,
+                  "max": 0.0
+                }
+              },
+              "key": {
+                "channel_wait": {
+                  "count": 1,
+                  "mean": 40.0,
+                  "stddev": 0.0,
+                  "min": 40.0,
+                  "p50": 40.0,
+                  "p90": 40.0,
+                  "p95": 40.0,
+                  "p99": 40.0,
+                  "p999": 40.0,
+                  "max": 40.0
+                },
+                "consumer_queue": {
+                  "count": 1,
+                  "mean": 15.0,
+                  "stddev": 0.0,
+                  "min": 15.0,
+                  "p50": 15.0,
+                  "p90": 15.0,
+                  "p95": 15.0,
+                  "p99": 15.0,
+                  "p999": 15.0,
+                  "max": 15.0
+                },
+                "convert": {
+                  "count": 1,
+                  "mean": 250.0,
+                  "stddev": 0.0,
+                  "min": 250.0,
+                  "p50": 250.0,
+                  "p90": 250.0,
+                  "p95": 250.0,
+                  "p99": 250.0,
+                  "p999": 250.0,
+                  "max": 250.0
+                },
+                "encode_wait": {
+                  "count": 1,
+                  "mean": 2401.0,
+                  "stddev": 0.0,
+                  "min": 2400.0,
+                  "p50": 2401.0,
+                  "p90": 2401.0,
+                  "p95": 2401.0,
+                  "p99": 2401.0,
+                  "p999": 2401.0,
+                  "max": 2401.0
+                },
+                "import": {
+                  "count": 1,
+                  "mean": 30.0,
+                  "stddev": 0.0,
+                  "min": 30.0,
+                  "p50": 30.0,
+                  "p90": 30.0,
+                  "p95": 30.0,
+                  "p99": 30.0,
+                  "p999": 30.0,
+                  "max": 30.0
+                },
+                "packetize": {
+                  "count": 1,
+                  "mean": 60.0,
+                  "stddev": 0.0,
+                  "min": 60.0,
+                  "p50": 60.0,
+                  "p90": 60.0,
+                  "p95": 60.0,
+                  "p99": 60.0,
+                  "p999": 60.0,
+                  "max": 60.0
+                },
+                "send": {
+                  "count": 1,
+                  "mean": 25.0,
+                  "stddev": 0.0,
+                  "min": 25.0,
+                  "p50": 25.0,
+                  "p90": 25.0,
+                  "p95": 25.0,
+                  "p99": 25.0,
+                  "p999": 25.0,
+                  "max": 25.0
+                },
+                "submit": {
+                  "count": 1,
+                  "mean": 120.0,
+                  "stddev": 0.0,
+                  "min": 120.0,
+                  "p50": 120.0,
+                  "p90": 120.0,
+                  "p95": 120.0,
+                  "p99": 120.0,
+                  "p999": 120.0,
+                  "max": 120.0
+                },
+                "total": {
+                  "count": 1,
+                  "mean": 3001.0,
+                  "stddev": 0.0,
+                  "min": 3000.0,
+                  "p50": 3001.0,
+                  "p90": 3001.0,
+                  "p95": 3001.0,
+                  "p99": 3001.0,
+                  "p999": 3001.0,
+                  "max": 3001.0
+                },
+                "unaccounted": {
+                  "count": 1,
+                  "mean": 75.0,
+                  "stddev": 0.0,
+                  "min": 75.0,
+                  "p50": 75.0,
+                  "p90": 75.0,
+                  "p95": 75.0,
+                  "p99": 75.0,
+                  "p999": 75.0,
+                  "max": 75.0
+                }
+              }
+            },
+            "interval": {
+              "count": 119,
+              "mean": 16664.0,
+              "stddev": 0.0,
+              "min": 16656.0,
+              "p50": 16671.0,
+              "p90": 16671.0,
+              "p95": 16671.0,
+              "p99": 16671.0,
+              "p999": 16671.0,
+              "max": 16671.0
+            },
+            "frame_size": {
+              "delta": {
+                "count": 119,
+                "mean": 40660.571428571435,
+                "stddev": 377.6343118274447,
+                "min": 40000.0,
+                "p50": 40671.0,
+                "p90": 41215.0,
+                "p95": 41279.0,
+                "p99": 41311.0,
+                "p999": 41311.0,
+                "max": 41311.0
+              },
+              "idr_reencode": {
+                "count": 0,
+                "mean": 0.0,
+                "stddev": 0.0,
+                "min": 0.0,
+                "p50": 0.0,
+                "p90": 0.0,
+                "p95": 0.0,
+                "p99": 0.0,
+                "p999": 0.0,
+                "max": 0.0
+              },
+              "key": {
+                "count": 1,
+                "mean": 180032.0,
+                "stddev": 0.0,
+                "min": 179968.0,
+                "p50": 180095.0,
+                "p90": 180095.0,
+                "p95": 180095.0,
+                "p99": 180095.0,
+                "p999": 180095.0,
+                "max": 180095.0
+              }
+            }
+          },
+          "resources": {},
+          "valid": true,
+          "warnings": []
+        }
+      ],
+      "aggregate": {
+        "effective_fps": {
+          "median": 59.99880002399952,
+          "mad": 0.0,
+          "min": 59.99880002399952,
+          "max": 59.99880002399952,
+          "n": 1
+        },
+        "fps_ratio": {
+          "median": 0.999980000399992,
+          "mad": 0.0,
+          "min": 0.999980000399992,
+          "max": 0.999980000399992,
+          "n": 1
+        },
+        "frames.captured": {
+          "median": 120.0,
+          "mad": 0.0,
+          "min": 120.0,
+          "max": 120.0,
+          "n": 1
+        },
+        "frames.idr_reencode": {
+          "median": 0.0,
+          "mad": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "n": 1
+        },
+        "interval.max": {
+          "median": 16671.0,
+          "mad": 0.0,
+          "min": 16671.0,
+          "max": 16671.0,
+          "n": 1
+        },
+        "interval.p50": {
+          "median": 16671.0,
+          "mad": 0.0,
+          "min": 16671.0,
+          "max": 16671.0,
+          "n": 1
+        },
+        "interval.p99": {
+          "median": 16671.0,
+          "mad": 0.0,
+          "min": 16671.0,
+          "max": 16671.0,
+          "n": 1
+        },
+        "interval.p999": {
+          "median": 16671.0,
+          "mad": 0.0,
+          "min": 16671.0,
+          "max": 16671.0,
+          "n": 1
+        },
+        "latency.captured.channel_wait.mean": {
+          "median": 42.975,
+          "mad": 0.0,
+          "min": 42.975,
+          "max": 42.975,
+          "n": 1
+        },
+        "latency.captured.channel_wait.p50": {
+          "median": 43.0,
+          "mad": 0.0,
+          "min": 43.0,
+          "max": 43.0,
+          "n": 1
+        },
+        "latency.captured.channel_wait.p95": {
+          "median": 46.0,
+          "mad": 0.0,
+          "min": 46.0,
+          "max": 46.0,
+          "n": 1
+        },
+        "latency.captured.channel_wait.p99": {
+          "median": 46.0,
+          "mad": 0.0,
+          "min": 46.0,
+          "max": 46.0,
+          "n": 1
+        },
+        "latency.captured.channel_wait.p999": {
+          "median": 46.0,
+          "mad": 0.0,
+          "min": 46.0,
+          "max": 46.0,
+          "n": 1
+        },
+        "latency.captured.consumer_queue.mean": {
+          "median": 15.0,
+          "mad": 0.0,
+          "min": 15.0,
+          "max": 15.0,
+          "n": 1
+        },
+        "latency.captured.consumer_queue.p50": {
+          "median": 15.0,
+          "mad": 0.0,
+          "min": 15.0,
+          "max": 15.0,
+          "n": 1
+        },
+        "latency.captured.consumer_queue.p95": {
+          "median": 15.0,
+          "mad": 0.0,
+          "min": 15.0,
+          "max": 15.0,
+          "n": 1
+        },
+        "latency.captured.consumer_queue.p99": {
+          "median": 15.0,
+          "mad": 0.0,
+          "min": 15.0,
+          "max": 15.0,
+          "n": 1
+        },
+        "latency.captured.consumer_queue.p999": {
+          "median": 15.0,
+          "mad": 0.0,
+          "min": 15.0,
+          "max": 15.0,
+          "n": 1
+        },
+        "latency.captured.convert.mean": {
+          "median": 255.875,
+          "mad": 0.0,
+          "min": 255.875,
+          "max": 255.875,
+          "n": 1
+        },
+        "latency.captured.convert.p50": {
+          "median": 256.0,
+          "mad": 0.0,
+          "min": 256.0,
+          "max": 256.0,
+          "n": 1
+        },
+        "latency.captured.convert.p95": {
+          "median": 262.0,
+          "mad": 0.0,
+          "min": 262.0,
+          "max": 262.0,
+          "n": 1
+        },
+        "latency.captured.convert.p99": {
+          "median": 262.0,
+          "mad": 0.0,
+          "min": 262.0,
+          "max": 262.0,
+          "n": 1
+        },
+        "latency.captured.convert.p999": {
+          "median": 262.0,
+          "mad": 0.0,
+          "min": 262.0,
+          "max": 262.0,
+          "n": 1
+        },
+        "latency.captured.encode_wait.mean": {
+          "median": 2839.5000000000014,
+          "mad": 0.0,
+          "min": 2839.5000000000014,
+          "max": 2839.5000000000014,
+          "n": 1
+        },
+        "latency.captured.encode_wait.p50": {
+          "median": 2833.0,
+          "mad": 0.0,
+          "min": 2833.0,
+          "max": 2833.0,
+          "n": 1
+        },
+        "latency.captured.encode_wait.p95": {
+          "median": 3239.0,
+          "mad": 0.0,
+          "min": 3239.0,
+          "max": 3239.0,
+          "n": 1
+        },
+        "latency.captured.encode_wait.p99": {
+          "median": 3289.0,
+          "mad": 0.0,
+          "min": 3289.0,
+          "max": 3289.0,
+          "n": 1
+        },
+        "latency.captured.encode_wait.p999": {
+          "median": 3289.0,
+          "mad": 0.0,
+          "min": 3289.0,
+          "max": 3289.0,
+          "n": 1
+        },
+        "latency.captured.import.mean": {
+          "median": 30.0,
+          "mad": 0.0,
+          "min": 30.0,
+          "max": 30.0,
+          "n": 1
+        },
+        "latency.captured.import.p50": {
+          "median": 30.0,
+          "mad": 0.0,
+          "min": 30.0,
+          "max": 30.0,
+          "n": 1
+        },
+        "latency.captured.import.p95": {
+          "median": 30.0,
+          "mad": 0.0,
+          "min": 30.0,
+          "max": 30.0,
+          "n": 1
+        },
+        "latency.captured.import.p99": {
+          "median": 30.0,
+          "mad": 0.0,
+          "min": 30.0,
+          "max": 30.0,
+          "n": 1
+        },
+        "latency.captured.import.p999": {
+          "median": 30.0,
+          "mad": 0.0,
+          "min": 30.0,
+          "max": 30.0,
+          "n": 1
+        },
+        "latency.captured.packetize.mean": {
+          "median": 60.0,
+          "mad": 0.0,
+          "min": 60.0,
+          "max": 60.0,
+          "n": 1
+        },
+        "latency.captured.packetize.p50": {
+          "median": 60.0,
+          "mad": 0.0,
+          "min": 60.0,
+          "max": 60.0,
+          "n": 1
+        },
+        "latency.captured.packetize.p95": {
+          "median": 60.0,
+          "mad": 0.0,
+          "min": 60.0,
+          "max": 60.0,
+          "n": 1
+        },
+        "latency.captured.packetize.p99": {
+          "median": 60.0,
+          "mad": 0.0,
+          "min": 60.0,
+          "max": 60.0,
+          "n": 1
+        },
+        "latency.captured.packetize.p999": {
+          "median": 60.0,
+          "mad": 0.0,
+          "min": 60.0,
+          "max": 60.0,
+          "n": 1
+        },
+        "latency.captured.send.mean": {
+          "median": 25.0,
+          "mad": 0.0,
+          "min": 25.0,
+          "max": 25.0,
+          "n": 1
+        },
+        "latency.captured.send.p50": {
+          "median": 25.0,
+          "mad": 0.0,
+          "min": 25.0,
+          "max": 25.0,
+          "n": 1
+        },
+        "latency.captured.send.p95": {
+          "median": 25.0,
+          "mad": 0.0,
+          "min": 25.0,
+          "max": 25.0,
+          "n": 1
+        },
+        "latency.captured.send.p99": {
+          "median": 25.0,
+          "mad": 0.0,
+          "min": 25.0,
+          "max": 25.0,
+          "n": 1
+        },
+        "latency.captured.send.p999": {
+          "median": 25.0,
+          "mad": 0.0,
+          "min": 25.0,
+          "max": 25.0,
+          "n": 1
+        },
+        "latency.captured.submit.mean": {
+          "median": 120.0,
+          "mad": 0.0,
+          "min": 120.0,
+          "max": 120.0,
+          "n": 1
+        },
+        "latency.captured.submit.p50": {
+          "median": 120.0,
+          "mad": 0.0,
+          "min": 120.0,
+          "max": 120.0,
+          "n": 1
+        },
+        "latency.captured.submit.p95": {
+          "median": 120.0,
+          "mad": 0.0,
+          "min": 120.0,
+          "max": 120.0,
+          "n": 1
+        },
+        "latency.captured.submit.p99": {
+          "median": 120.0,
+          "mad": 0.0,
+          "min": 120.0,
+          "max": 120.0,
+          "n": 1
+        },
+        "latency.captured.submit.p999": {
+          "median": 120.0,
+          "mad": 0.0,
+          "min": 120.0,
+          "max": 120.0,
+          "n": 1
+        },
+        "latency.captured.total.mean": {
+          "median": 3439.5000000000014,
+          "mad": 0.0,
+          "min": 3439.5000000000014,
+          "max": 3439.5000000000014,
+          "n": 1
+        },
+        "latency.captured.total.p50": {
+          "median": 3433.0,
+          "mad": 0.0,
+          "min": 3433.0,
+          "max": 3433.0,
+          "n": 1
+        },
+        "latency.captured.total.p95": {
+          "median": 3839.0,
+          "mad": 0.0,
+          "min": 3839.0,
+          "max": 3839.0,
+          "n": 1
+        },
+        "latency.captured.total.p99": {
+          "median": 3889.0,
+          "mad": 0.0,
+          "min": 3889.0,
+          "max": 3889.0,
+          "n": 1
+        },
+        "latency.captured.total.p999": {
+          "median": 3889.0,
+          "mad": 0.0,
+          "min": 3889.0,
+          "max": 3889.0,
+          "n": 1
+        },
+        "latency.captured.unaccounted.mean": {
+          "median": 66.14999999999998,
+          "mad": 0.0,
+          "min": 66.14999999999998,
+          "max": 66.14999999999998,
+          "n": 1
+        },
+        "latency.captured.unaccounted.p50": {
+          "median": 66.0,
+          "mad": 0.0,
+          "min": 66.0,
+          "max": 66.0,
+          "n": 1
+        },
+        "latency.captured.unaccounted.p95": {
+          "median": 73.0,
+          "mad": 0.0,
+          "min": 73.0,
+          "max": 73.0,
+          "n": 1
+        },
+        "latency.captured.unaccounted.p99": {
+          "median": 75.0,
+          "mad": 0.0,
+          "min": 75.0,
+          "max": 75.0,
+          "n": 1
+        },
+        "latency.captured.unaccounted.p999": {
+          "median": 75.0,
+          "mad": 0.0,
+          "min": 75.0,
+          "max": 75.0,
+          "n": 1
+        },
+        "loss_ratio": {
+          "median": 0.0,
+          "mad": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "n": 1
+        },
+        "mbps": {
+          "median": 20.242445571256642,
+          "mad": 0.0,
+          "min": 20.242445571256642,
+          "max": 20.242445571256642,
+          "n": 1
+        },
+        "over_budget_pct": {
+          "median": 0.0,
+          "mad": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "n": 1
+        },
+        "pacing_miss_pct": {
+          "median": 0.0,
+          "mad": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "n": 1
+        }
+      },
+      "valid": true,
+      "warnings": [
+        "single iteration: spread is unknown, comparisons are low-confidence"
+      ]
+    }
+  ]
+}

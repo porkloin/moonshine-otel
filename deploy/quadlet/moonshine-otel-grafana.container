@@ -1,0 +1,25 @@
+# Grafana with moonshine-otel's dashboards. Anonymous viewers can browse and use Explore; admin/admin edits.
+[Unit]
+Description=moonshine-otel: Grafana
+PartOf=moonshine-otel-stack.target
+After=moonshine-otel-prometheus.service moonshine-otel-tempo.service
+
+[Container]
+ContainerName=moonshine-otel-grafana
+Image=docker.io/grafana/grafana:13.2.2
+Environment=GF_AUTH_ANONYMOUS_ENABLED=true GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer GF_USERS_VIEWERS_CAN_EDIT=true
+Volume=%h/.local/share/moonshine-otel/observability/grafana/provisioning:/etc/grafana/provisioning:ro,Z
+Volume=%h/.local/share/moonshine-otel/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro,Z
+Volume=moonshine-otel-grafana:/var/lib/grafana
+Network=moonshine-otel.network
+PublishPort=127.0.0.1:${MOONSHINE_OTEL_GRAFANA_PORT}:3000
+
+[Service]
+# Published port; override it in ~/.config/moonshine-otel/settings.env.
+Environment=MOONSHINE_OTEL_GRAFANA_PORT=3000
+EnvironmentFile=-%h/.config/moonshine-otel/settings.env
+Restart=on-failure
+TimeoutStartSec=900
+
+[Install]
+WantedBy=moonshine-otel-stack.target

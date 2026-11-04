@@ -1,0 +1,32 @@
+# Forwards the OTLP spool of a sandboxed `moonshine-otel watch` (MOONSHINE_OTEL_SPOOL set inside) to a collector.
+# Run it outside the sandbox, as an account that can read the spool but that the sandbox can't touch. Its settings
+# come from ~/.config/moonshine-otel/settings.env:
+#   MOONSHINE_OTEL_RELAY_SPOOL    the spool directory as seen from here (e.g. the host path of the sandbox's volume);
+#                                 nothing above its parent may be writable from inside the sandbox
+#   OTEL_EXPORTER_OTLP_ENDPOINT   the collector (default: localhost on MOONSHINE_OTEL_OTLP_GRPC_PORT, or 4317)
+#
+#   systemctl --user enable --now moonshine-otel-relay
+[Unit]
+Description=moonshine-otel: forward a spool to an OTLP collector
+After=moonshine-otel-collector.service
+
+[Service]
+EnvironmentFile=-%h/.config/moonshine-otel/settings.env
+ExecStart=%h/.local/bin/moonshine-otel-relay
+Restart=on-failure
+RestartSec=10
+
+# It reads one directory and talks to the collector; nothing else.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+MemoryMax=256M
+
+[Install]
+WantedBy=default.target

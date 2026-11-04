@@ -1,0 +1,3 @@
+# The network the moonshine-otel stack's containers share; each reaches the others by container name.
+[Network]
+NetworkName=moonshine-otel

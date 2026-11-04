@@ -1,0 +1,35 @@
+# Receives OTLP from moonshine-otel and fans out: metrics → Prometheus (OTLP write,
+# exponential histograms passed through unchanged, so they land as native histograms),
+# traces → Tempo.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+
+exporters:
+  otlp_http/prometheus:
+    endpoint: http://moonshine-otel-prometheus:9090/api/v1/otlp
+    tls:
+      insecure: true
+  otlp_grpc/tempo:
+    endpoint: moonshine-otel-tempo:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http/prometheus]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_grpc/tempo]

@@ -1,0 +1,24 @@
+# Tempo for moonshine-otel's traces.
+[Unit]
+Description=moonshine-otel: Tempo
+PartOf=moonshine-otel-stack.target
+
+[Container]
+ContainerName=moonshine-otel-tempo
+Image=docker.io/grafana/tempo:2.10.8
+Exec=-config.file=/etc/tempo/tempo.yaml
+User=0
+Volume=%h/.local/share/moonshine-otel/observability/tempo.yaml:/etc/tempo/tempo.yaml:ro,Z
+Volume=moonshine-otel-tempo:/var/tempo
+Network=moonshine-otel.network
+PublishPort=127.0.0.1:${MOONSHINE_OTEL_TEMPO_PORT}:3200
+
+[Service]
+# Published port; override it in ~/.config/moonshine-otel/settings.env.
+Environment=MOONSHINE_OTEL_TEMPO_PORT=3200
+EnvironmentFile=-%h/.config/moonshine-otel/settings.env
+Restart=on-failure
+TimeoutStartSec=900
+
+[Install]
+WantedBy=moonshine-otel-stack.target

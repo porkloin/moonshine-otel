@@ -1,0 +1,22 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://moonshine-otel-prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 5s
+
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://moonshine-otel-tempo:3200
+    jsonData:
+      tracesToMetrics:
+        datasourceUid: prometheus
+      search:
+        hide: false

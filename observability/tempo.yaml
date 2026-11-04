@@ -1,0 +1,47 @@
+# Single-binary Tempo with local storage and span-attribute search.
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+ingester:
+  # Bench runs are short; make traces searchable quickly.
+  trace_idle_period: 5s
+  max_block_duration: 5m
+
+compactor:
+  compaction:
+    block_retention: 720h
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/blocks
+    wal:
+      path: /var/tempo/wal
+      # A block's time range comes from its spans' times only within this slack of when they arrived (2m by
+      # default), else from the arrival. A replayed spool (moonshine-otel-relay, a test run's bundle) carries old
+      # spans, and searches over the time they happened would skip their blocks: take span times as they are.
+      ingestion_time_range_slack: 8760h
+
+overrides:
+  defaults:
+    global:
+      # bench.run spans carry ~150 attributes.
+      max_bytes_per_trace: 50000000
+
+query_frontend:
+  search:
+    # The outlier explorer lists many frame spans under one bench.run span set.
+    max_spans_per_span_set: 1000
+    # Searches older than this skip the ingester (30m by default), where replayed old traces wait until their
+    # block is flushed (max_block_duration) and the querier next lists blocks. One person's stack can always ask it.
+    query_ingesters_until: 8760h

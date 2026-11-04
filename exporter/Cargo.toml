@@ -1,0 +1,46 @@
+[package]
+name = "moonshine-otel-exporter"
+description = "OTLP telemetry, exact per-run summaries and A/B comparison for Moonshine's video pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["cli", "relay"]
+# The clap argument structs shared with the `moonshine-otel` binary.
+cli = ["dep:clap"]
+# The `moonshine-otel-relay` binary, which forwards a spool to a collector.
+relay = ["cli", "dep:rustix", "dep:tokio", "dep:tonic", "dep:tracing-subscriber", "opentelemetry-proto/gen-tonic"]
+
+[[bin]]
+name = "moonshine-otel-relay"
+path = "src/bin/relay.rs"
+required-features = ["relay"]
+
+[dependencies]
+clap = { workspace = true, optional = true }
+opentelemetry = { workspace = true, features = ["metrics", "trace"] }
+opentelemetry_sdk = { workspace = true, features = ["metrics", "trace", "rt-tokio", "experimental_metrics_custom_reader"] }
+opentelemetry-otlp = { workspace = true, features = ["grpc-tonic", "http-proto", "reqwest-blocking-client", "metrics", "trace"] }
+opentelemetry-proto = { workspace = true, features = ["gen-tonic-messages", "metrics", "trace"] }
+prost = "0.14.4"
+rustix = { version = "1.1.5", features = ["fs"], optional = true }
+tokio = { workspace = true, features = ["macros", "rt", "signal", "time"], optional = true }
+tonic = { version = "0.14.6", default-features = false, features = ["transport"], optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+anyhow.workspace = true
+csv.workspace = true
+gethostname.workspace = true
+hdrhistogram.workspace = true
+humantime = "2.4.0"
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+opentelemetry_sdk = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "time"] }
+tracing-subscriber.workspace = true

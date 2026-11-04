@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: test
+            run: cargo test --workspace && cargo build -p moonshine-otel-exporter --example synthetic
+          - name: clippy
+            run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+          - name: fmt
+            run: cargo fmt --all -- --check
+          - name: docs
+            run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace
+          - name: machete
+            run: cargo install cargo-machete && cargo machete
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: ${{ matrix.run }}
+
+  dashboards:
+    name: Dashboards are generated
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 observability/grafana/generate.py && git diff --exit-code observability/grafana/dashboards

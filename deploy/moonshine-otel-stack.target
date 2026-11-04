@@ -1,0 +1,8 @@
+# The local observability stack: collector, Prometheus, Tempo and Grafana (the Quadlet units in
+# ~/.config/containers/systemd/moonshine-otel-*). Listens on localhost only.
+#   systemctl --user enable --now moonshine-otel-stack.target
+[Unit]
+Description=moonshine-otel: collector, Prometheus, Tempo and Grafana
+
+[Install]
+WantedBy=default.target

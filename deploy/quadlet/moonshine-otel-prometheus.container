@@ -1,0 +1,24 @@
+# Prometheus for moonshine-otel's metrics, with its OTLP receiver on (native histograms).
+[Unit]
+Description=moonshine-otel: Prometheus
+PartOf=moonshine-otel-stack.target
+
+[Container]
+ContainerName=moonshine-otel-prometheus
+Image=docker.io/prom/prometheus:v3.14.0
+Exec=--config.file=/etc/prometheus/prometheus.yaml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=30d --web.enable-otlp-receiver
+Volume=%h/.local/share/moonshine-otel/observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro,Z
+Volume=moonshine-otel-prometheus:/prometheus
+Network=moonshine-otel.network
+PublishPort=127.0.0.1:${MOONSHINE_OTEL_PROMETHEUS_PORT}:9090
+
+[Service]
+# Published port; override it in ~/.config/moonshine-otel/settings.env.
+Environment=MOONSHINE_OTEL_PROMETHEUS_PORT=9090
+EnvironmentFile=-%h/.config/moonshine-otel/settings.env
+Restart=on-failure
+# The first start pulls the image.
+TimeoutStartSec=900
+
+[Install]
+WantedBy=moonshine-otel-stack.target
