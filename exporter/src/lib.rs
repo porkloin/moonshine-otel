@@ -7,6 +7,7 @@
 
 #[cfg(feature = "cli")]
 pub mod cli;
+pub mod compact;
 pub mod compare;
 pub mod frame_ids;
 pub mod identity;

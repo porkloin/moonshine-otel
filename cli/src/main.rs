@@ -54,10 +54,20 @@ enum Command {
 	Summary(summary::SummaryArgs),
 	/// Compare two result files or directories (exit 0 no regression, 1 regression, 2 invalid).
 	Compare(CompareArgs),
+	/// Copy a spool without the metric points that repeat their series' previous value, to attach it somewhere.
+	Compact(CompactArgs),
 	/// Print the captured run identity and warn about sources of noise.
 	Env(EnvArgs),
 	/// Draw charts (SVG and PNG): click-to-flash latency, a stream's timeline, frame pacing or pipeline stages.
 	Plot(plot::PlotArgs),
+}
+
+#[derive(Args, Debug)]
+struct CompactArgs {
+	/// The spool: a directory of OTLP batch files (e.g. a test run's logs/otlp).
+	from: std::path::PathBuf,
+	/// Where the copy goes.
+	to: std::path::PathBuf,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -126,6 +136,22 @@ fn main() {
 				Err(e) => {
 					tracing::error!("{e:#}");
 					2
+				},
+			},
+			Command::Compact(args) => match moonshine_otel_exporter::compact::compact(&args.from, &args.to) {
+				Ok(s) => {
+					eprintln!(
+						"{} of {} metric points kept; {:.1} MB -> {:.1} MB",
+						s.points_out,
+						s.points_in,
+						s.bytes_in as f64 / 1e6,
+						s.bytes_out as f64 / 1e6
+					);
+					0
+				},
+				Err(e) => {
+					tracing::error!("{e:#}");
+					EXIT_FAILED
 				},
 			},
 			Command::Env(args) => print_env(&args).map_or_else(
