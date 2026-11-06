@@ -436,8 +436,9 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 		} else {
 			String::new()
 		};
+		let chaos = f.get("chaos").map(|c| format!(", chaos {c}")).unwrap_or_default();
 		md.push_str(&format!(
-			"- {prefix}{} ({}, commit {}), {} at {} fps, {}, streams of {} each, route {}\n",
+			"- {prefix}{} ({}, commit {}), {} at {} fps, {}, streams of {} each, route {}{}\n",
 			get("code"),
 			get("ref"),
 			get("commit"),
@@ -446,6 +447,7 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 			get("bitrate"),
 			get("seconds"),
 			get("route"),
+			chaos,
 		));
 		md.push_str(&format!(
 			"- {prefix}workloads (streams): {}; {} frames decoded; clock sync {}\n",
