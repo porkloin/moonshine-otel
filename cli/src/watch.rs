@@ -73,14 +73,12 @@ enum Line {
 		chroma: String,
 	},
 	Frame {
-		/// The frame index the client receives; absent from Moonshines before it was added.
-		#[serde(default)]
-		frame_number: Option<u64>,
-		/// When the frame was captured, microseconds since the Unix epoch; absent from older Moonshines.
-		#[serde(default)]
-		captured_unix_us: Option<u64>,
-		/// The captured content's color space (`sdr`, `hdr10`, `scrgb`); absent on a re-encoded keyframe and from
-		/// older Moonshines.
+		/// The frame index the client receives, so the two sides' records of a frame can be matched.
+		frame_number: u64,
+		/// When the frame was captured, in seconds since the Unix epoch.
+		captured_at: f64,
+		/// The captured content's color space by Moonshine's own names (`srgb`, `bt2020_pq`,
+		/// `scrgb_linear`); absent on a keyframe re-encoded without a new capture.
 		#[serde(default)]
 		content: Option<String>,
 		/// Every stage's time in seconds; Moonshine's `Duration`s serialized as floats.
@@ -203,7 +201,7 @@ fn to_sample(frame: &Line, observed_at: Instant) -> FrameSample {
 	let mut sample = FrameSample::zeroed(observed_at);
 	if let Line::Frame {
 		frame_number,
-		captured_unix_us,
+		captured_at,
 		ref content,
 		channel_wait,
 		import,
@@ -233,18 +231,21 @@ fn to_sample(frame: &Line, observed_at: Instant) -> FrameSample {
 		sample.total = seconds(total);
 		sample.encoded_bytes = encoded_bytes;
 		sample.is_key_frame = is_key_frame;
-		sample.seq = frame_number;
+		sample.seq = Some(frame_number);
+		// Moonshine names the color space after its encoding; the workloads' mode events, which
+		// content is compared with, name the modes.
 		sample.content = content.as_deref().map(|c| match c {
-			"sdr" => "sdr",
-			"hdr10" => "hdr10",
-			"scrgb" => "scrgb",
+			"srgb" => "sdr",
+			"bt2020_pq" => "hdr10",
+			"scrgb_linear" => "scrgb",
 			_ => "other",
 		});
 		// Moonshine and moonshine-otel share the machine's wall clock; place the capture on this process's
 		// monotonic clock by how long ago it was.
-		sample.captured_at = captured_unix_us.and_then(|us| {
-			let captured = std::time::UNIX_EPOCH + Duration::from_micros(us);
-			let ago = std::time::SystemTime::now().duration_since(captured).ok()?;
+		sample.captured_at = Duration::try_from_secs_f64(captured_at).ok().and_then(|since_epoch| {
+			let ago = std::time::SystemTime::now()
+				.duration_since(std::time::UNIX_EPOCH + since_epoch)
+				.ok()?;
 			observed_at.checked_sub(ago)
 		});
 	}
@@ -494,7 +495,7 @@ mod tests {
 			}
 		);
 		let frame: Line = serde_json::from_str(
-			r#"{"type":"frame","channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"gpu_encode":0.00112,"bitstream_ready":0.00145,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":false}"#,
+			r#"{"type":"frame","frame_number":1,"captured_at":1793750400.5,"channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"gpu_encode":0.00112,"bitstream_ready":0.00145,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":false}"#,
 		)
 		.unwrap();
 		let sample = to_sample(&frame, Instant::now());
@@ -519,7 +520,7 @@ mod tests {
 	fn reads_a_frame_without_the_gpu_video_queue_times() {
 		// Moonshine omits both entirely when its GPU video queue reports no timestamps.
 		let frame: Line = serde_json::from_str(
-			r#"{"type":"frame","channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":true}"#,
+			r#"{"type":"frame","frame_number":1,"captured_at":1793750400.5,"channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":true}"#,
 		)
 		.unwrap();
 		let sample = to_sample(&frame, Instant::now());
@@ -541,9 +542,9 @@ mod tests {
 	#[test]
 	fn takes_the_frame_number_and_capture_time() {
 		let captured = std::time::SystemTime::now() - Duration::from_millis(5);
-		let us = captured.duration_since(std::time::UNIX_EPOCH).unwrap().as_micros();
+		let secs = captured.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64();
 		let frame: Line = serde_json::from_str(&format!(
-			r#"{{"type":"frame","frame_number":42,"captured_unix_us":{us},"content":"scrgb","channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":false}}"#
+			r#"{{"type":"frame","frame_number":42,"captured_at":{secs},"content":"scrgb_linear","channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":false}}"#
 		))
 		.unwrap();
 		let now = Instant::now();

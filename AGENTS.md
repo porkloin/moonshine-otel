@@ -34,7 +34,9 @@ it starts). Several readers can connect at once, so `watch --results-dir` works 
 ## Frame traces, host to client
 
 Moonshine's `frame` lines carry `frame_number` (the frame index it sends, which the client receives) and
-`captured_unix_us`; `watch` uses them as the frame's `seq` and capture time (`frames.csv` gains `captured_unix_us`).
+`captured_at` (seconds since the Unix epoch); `watch` uses them as the frame's `seq` and capture time (`frames.csv`
+writes the capture time as `captured_unix_us`). `content` uses Moonshine's color space names (`srgb`, `bt2020_pq`,
+`scrgb_linear`), which `watch` maps to the workloads' mode names (`sdr`, `hdr10`, `scrgb`).
 With `--stream-key-file PATH`, `watch` reads a key from PATH when each stream starts, and every frame with a number
 becomes a trace of its own: the trace id and the root `frame` span's id come from the key and the frame number
 (`exporter/src/frame_ids.rs`: FNV-1a 128 of `<key>/<number>`, FNV-1a 64 of `<key>/<number>/frame`), linked to the
