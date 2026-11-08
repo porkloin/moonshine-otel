@@ -212,6 +212,15 @@ impl RunTracer {
 		if let Some(i) = derived.interval {
 			attrs.push(KeyValue::new("frame.interval_us", us(i)));
 		}
+		// The GPU video queue's timings, carried like `interval`: only on a frame that reports them.
+		for (key, d) in [
+			("frame.gpu_encode_us", sample.gpu_encode),
+			("frame.bitstream_ready_us", sample.bitstream_ready),
+		] {
+			if let Some(d) = d {
+				attrs.push(KeyValue::new(key, us(d)));
+			}
+		}
 		attrs.push(KeyValue::new("frame.encoded_bytes", sample.encoded_bytes as i64));
 		if let Some(content) = sample.content {
 			attrs.push(KeyValue::new("frame.content", content));

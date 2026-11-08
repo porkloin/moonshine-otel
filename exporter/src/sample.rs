@@ -115,6 +115,12 @@ pub struct FrameSample {
 	pub submit: Duration,
 	pub consumer_queue: Duration,
 	pub encode_wait: Duration,
+	/// Time the GPU's video queue spent encoding this frame, measured inside `encode_wait`.
+	/// `None` when that queue reports no timestamps, which is how Moonshine leaves it out of a frame line.
+	pub gpu_encode: Option<Duration>,
+	/// When the encoded bitstream was ready, as the GPU's video queue reports it, inside `encode_wait`.
+	/// `None` when that queue reports no timestamps.
+	pub bitstream_ready: Option<Duration>,
 	pub packetize: Duration,
 	pub send: Duration,
 	pub total: Duration,
@@ -143,6 +149,8 @@ impl FrameSample {
 			submit: Duration::ZERO,
 			consumer_queue: Duration::ZERO,
 			encode_wait: Duration::ZERO,
+			gpu_encode: None,
+			bitstream_ready: None,
 			packetize: Duration::ZERO,
 			send: Duration::ZERO,
 			total: Duration::ZERO,

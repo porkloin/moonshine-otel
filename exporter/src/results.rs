@@ -373,7 +373,7 @@ pub struct FrameCsvWriter {
 }
 
 impl FrameCsvWriter {
-	pub const HEADER: [&'static str; 23] = [
+	pub const HEADER: [&'static str; 25] = [
 		"run_id",
 		"iteration",
 		"seq",
@@ -397,6 +397,10 @@ impl FrameCsvWriter {
 		"pacing_miss",
 		"timing_reconstructed",
 		"captured_unix_us",
+		// Appended last, so every column that existed before keeps its position. Empty on a frame whose
+		// GPU video queue reported no timestamps.
+		"gpu_encode_us",
+		"bitstream_ready_us",
 	];
 
 	/// `origin` is the zero point of the `observed_us` column.
@@ -462,6 +466,9 @@ impl FrameCsvWriter {
 				.map(us)
 				.unwrap_or_default(),
 		);
+		// The GPU video queue's own timings, empty when it reports none.
+		row.push(sample.gpu_encode.map(us).unwrap_or_default());
+		row.push(sample.bitstream_ready.map(us).unwrap_or_default());
 		self.writer.write_record(&row)?;
 		Ok(())
 	}
@@ -577,7 +584,9 @@ mod tests {
 			}
 		}
 		let mut w = FrameCsvWriter::new(Box::new(Shared(buf.clone())), t0).unwrap();
-		let s = FrameSample::zeroed(t0);
+		let mut s = FrameSample::zeroed(t0);
+		s.gpu_encode = Some(std::time::Duration::from_micros(1234));
+		s.bitstream_ready = Some(std::time::Duration::from_micros(2345));
 		let d = crate::sample::Deriver::new(60).derive(&s);
 		w.write("r", 0, false, &s, &d).unwrap();
 		w.flush().unwrap();
@@ -585,5 +594,13 @@ mod tests {
 		let lines: Vec<&str> = text.lines().collect();
 		assert_eq!(lines.len(), 2);
 		assert_eq!(lines[0].split(',').count(), lines[1].split(',').count(), "{text}");
+		// Each value sits under its own column, not just the right number of them.
+		let column = |name: &str| {
+			let i = lines[0].split(',').position(|h| h == name).unwrap();
+			lines[1].split(',').nth(i).unwrap().to_string()
+		};
+		assert_eq!(column("gpu_encode_us"), "1234");
+		assert_eq!(column("bitstream_ready_us"), "2345");
+		assert_eq!(column("captured_unix_us"), "");
 	}
 }
