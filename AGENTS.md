@@ -20,8 +20,10 @@ the CLI, what each number means, and how the repository fits together. README.md
 
 `moonshine-otel watch` records a running Moonshine from its statistics socket (Moonshine's `[stats] socket`
 setting, default path `$XDG_RUNTIME_DIR/moonshine/stats.sock`). The socket carries one JSON object per line:
-`stream_started` (resolution, fps, bitrate, codec, dynamic range, chroma), a `frame` per encoded frame with its stage
-timings, `stream_stopped`, and `lagged` when the reader fell behind; the format is documented in Moonshine's
+`stream_started` (the stream's `generation` and `stats_version`, then resolution, fps, bitrate, codec, dynamic range, chroma), a `frame`
+per encoded frame with its stage timings, `stream_stopped`, and `lagged` when the reader fell behind. Every duration
+in a `frame` line is a number of seconds, and `gpu_encode` and `bitstream_ready` are left out entirely when
+Moonshine's GPU video queue reports no timestamps. The format is documented in Moonshine's
 `src/stats_socket.rs`, and `cli/src/watch.rs` parses it. Each stream is one run (`run_id`). With `--results-dir`,
 every stream leaves `<run_id>.json` and `<run_id>.frames.csv`; `compare` takes the directory. When Moonshine isn't listening,
 `watch` retries every 2 s, so it can start before Moonshine and survives restarts.
@@ -254,6 +256,10 @@ which these are derived:
 - **unaccounted** = `total − (channel_wait + import + convert + submit + encode_wait + packetize + send)`.
   `consumer_queue` is a sub-interval of `encode_wait` and isn't added. A negative value means the reported stage
   timings overlap. Such frames are counted, and histograms clamp the value at zero.
+- **gpu_encode**, **bitstream_ready**: times measured inside the GPU's video queue, sub-intervals of `encode_wait`,
+  so they are never added to the sequential sum either. Moonshine leaves both out when that queue reports no
+  timestamps. `watch` carries them to `frames.csv` (the `gpu_encode_us` and `bitstream_ready_us` columns, empty when
+  absent) and to the frame spans, and leaves them out of the stage histograms.
 - **interval**: time between `watch` receiving consecutive captured frames, so delivery pacing plus receiver
   jitter.
 - **over budget**: `total > 1/target_fps`.
@@ -295,7 +301,8 @@ Prometheus's quantiles are for trends; the result JSON is the source of truth.
   exact aggregate as `result.<metric>` (medians, µs), e.g. `result.latency.captured.total.p99`.
 - `bench.iteration` is a child with the same `result.*` for a single iteration.
 - `frame` spans have the stage durations as attributes (`frame.<stage>_us`, `frame.total_us`, `frame.interval_us`, and
-  so on). The stages overlap, so they're attributes, not child spans. A span runs from capture to send; the capture
+  so on), plus `frame.gpu_encode_us` and `frame.bitstream_ready_us` on the frames whose GPU video queue reported
+  them. The stages overlap, so they're attributes, not child spans. A span runs from capture to send; the capture
   time is receive time minus `total`, and the span is marked `timing=reconstructed`. Each outlier carries a `lead_up`
   event listing the 8 preceding frames.
 

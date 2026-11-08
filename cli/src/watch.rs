@@ -2,9 +2,10 @@
 //! streams show up live in the dashboards.
 //!
 //! Moonshine writes one JSON object per line to the socket set in its configuration's `[stats]`
-//! table: `stream_started` with the stream's parameters, a `frame` per encoded frame, and
-//! `stream_stopped`. Each stream becomes one run. The socket's peer is Moonshine's process,
-//! whose GPU and CPU use is sampled alongside.
+//! table: `stream_started` with the stream's parameters and the format's `stats_version`, a `frame`
+//! per encoded frame, and `stream_stopped`. Every stage time in a `frame` line is a number of
+//! seconds. Each stream becomes one run. The socket's peer is Moonshine's process, whose GPU and
+//! CPU use is sampled alongside.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -52,11 +53,16 @@ pub struct WatchArgs {
 	export: ExportArgs,
 }
 
+/// The statistics format version this build reads: Moonshine's `stats_version`.
+const STATS_VERSION: u32 = 1;
+
 /// One line from Moonshine's statistics socket.
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum Line {
 	StreamStarted {
+		/// The socket's format version; Moonshine's `stats_version`.
+		stats_version: u32,
 		width: u32,
 		height: u32,
 		fps: u32,
@@ -77,17 +83,24 @@ enum Line {
 		/// older Moonshines.
 		#[serde(default)]
 		content: Option<String>,
-		channel_wait_us: u64,
-		import_us: u64,
-		convert_us: u64,
-		submit_us: u64,
-		consumer_queue_us: u64,
-		encode_wait_us: u64,
-		packetize_us: u64,
-		send_us: u64,
-		total_us: u64,
+		/// Every stage's time in seconds; Moonshine's `Duration`s serialized as floats.
+		channel_wait: f64,
+		import: f64,
+		convert: f64,
+		submit: f64,
+		consumer_queue: f64,
+		encode_wait: f64,
+		/// Times measured inside the GPU's video queue, sub-intervals of `encode_wait`; Moonshine
+		/// leaves both out entirely when that queue reports no timestamps.
+		#[serde(default)]
+		gpu_encode: Option<f64>,
+		#[serde(default)]
+		bitstream_ready: Option<f64>,
+		packetize: f64,
+		send: f64,
+		total: f64,
 		encoded_bytes: u64,
-		key_frame: bool,
+		is_key_frame: bool,
 	},
 	StreamStopped,
 	Lagged {
@@ -181,36 +194,45 @@ pub async fn watch(args: &WatchArgs) -> anyhow::Result<i32> {
 	Ok(0)
 }
 
+/// A stage's time, as Moonshine writes it: a number of seconds.
+fn seconds(s: f64) -> Duration {
+	Duration::from_secs_f64(s)
+}
+
 fn to_sample(frame: &Line, observed_at: Instant) -> FrameSample {
 	let mut sample = FrameSample::zeroed(observed_at);
 	if let Line::Frame {
 		frame_number,
 		captured_unix_us,
 		ref content,
-		channel_wait_us,
-		import_us,
-		convert_us,
-		submit_us,
-		consumer_queue_us,
-		encode_wait_us,
-		packetize_us,
-		send_us,
-		total_us,
+		channel_wait,
+		import,
+		convert,
+		submit,
+		consumer_queue,
+		encode_wait,
+		gpu_encode,
+		bitstream_ready,
+		packetize,
+		send,
+		total,
 		encoded_bytes,
-		key_frame,
+		is_key_frame,
 	} = *frame
 	{
-		sample.channel_wait = Duration::from_micros(channel_wait_us);
-		sample.import = Duration::from_micros(import_us);
-		sample.convert = Duration::from_micros(convert_us);
-		sample.submit = Duration::from_micros(submit_us);
-		sample.consumer_queue = Duration::from_micros(consumer_queue_us);
-		sample.encode_wait = Duration::from_micros(encode_wait_us);
-		sample.packetize = Duration::from_micros(packetize_us);
-		sample.send = Duration::from_micros(send_us);
-		sample.total = Duration::from_micros(total_us);
+		sample.channel_wait = seconds(channel_wait);
+		sample.import = seconds(import);
+		sample.convert = seconds(convert);
+		sample.submit = seconds(submit);
+		sample.consumer_queue = seconds(consumer_queue);
+		sample.encode_wait = seconds(encode_wait);
+		sample.gpu_encode = gpu_encode.map(seconds);
+		sample.bitstream_ready = bitstream_ready.map(seconds);
+		sample.packetize = seconds(packetize);
+		sample.send = seconds(send);
+		sample.total = seconds(total);
 		sample.encoded_bytes = encoded_bytes;
-		sample.is_key_frame = key_frame;
+		sample.is_key_frame = is_key_frame;
 		sample.seq = frame_number;
 		sample.content = content.as_deref().map(|c| match c {
 			"sdr" => "sdr",
@@ -272,6 +294,7 @@ impl Session<'_> {
 	fn handle(&mut self, text: &str) -> anyhow::Result<()> {
 		match serde_json::from_str::<Line>(text) {
 			Ok(Line::StreamStarted {
+				stats_version,
 				width,
 				height,
 				fps,
@@ -280,6 +303,12 @@ impl Session<'_> {
 				dynamic_range,
 				chroma,
 			}) => {
+				if stats_version > STATS_VERSION {
+					tracing::warn!(
+						"Moonshine's statistics are format version {stats_version}; this build reads version {STATS_VERSION} \
+						and defaults anything newer leaves out"
+					);
+				}
 				self.finish("a new stream started before this one stopped");
 				let config = RunConfig {
 					command: Vec::new(),
@@ -448,12 +477,13 @@ mod tests {
 	#[test]
 	fn reads_moonshines_lines() {
 		let started: Line = serde_json::from_str(
-			r#"{"type":"stream_started","width":1920,"height":1080,"fps":60,"bitrate":20000000,"codec":"hevc","dynamic_range":"sdr","chroma":"yuv420"}"#,
+			r#"{"type":"stream_started","stats_version":1,"width":1920,"height":1080,"fps":60,"bitrate":20000000,"codec":"hevc","dynamic_range":"sdr","chroma":"yuv420"}"#,
 		)
 		.unwrap();
 		assert_eq!(
 			started,
 			Line::StreamStarted {
+				stats_version: 1,
 				width: 1920,
 				height: 1080,
 				fps: 60,
@@ -464,13 +494,17 @@ mod tests {
 			}
 		);
 		let frame: Line = serde_json::from_str(
-			r#"{"type":"frame","channel_wait_us":41,"import_us":28,"convert_us":190,"submit_us":35,"consumer_queue_us":12,"encode_wait_us":1630,"packetize_us":22,"send_us":48,"total_us":2010,"encoded_bytes":41666,"key_frame":false}"#,
+			r#"{"type":"frame","channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"gpu_encode":0.00112,"bitstream_ready":0.00145,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":false}"#,
 		)
 		.unwrap();
 		let sample = to_sample(&frame, Instant::now());
-		assert_eq!(sample.total, Duration::from_micros(2010));
-		assert_eq!(sample.encode_wait, Duration::from_micros(1630));
+		assert_eq!(sample.total, seconds(0.00201));
+		assert_eq!(sample.encode_wait, seconds(0.00163));
+		assert_eq!(sample.channel_wait, seconds(0.000041));
+		assert_eq!(sample.gpu_encode, Some(seconds(0.00112)));
+		assert_eq!(sample.bitstream_ready, Some(seconds(0.00145)));
 		assert_eq!(sample.encoded_bytes, 41666);
+		assert!(!sample.is_key_frame);
 		assert_eq!(
 			serde_json::from_str::<Line>(r#"{"type":"stream_stopped"}"#).unwrap(),
 			Line::StreamStopped
@@ -479,6 +513,19 @@ mod tests {
 			serde_json::from_str::<Line>(r#"{"type":"lagged","missed":3}"#).unwrap(),
 			Line::Lagged { missed: 3 }
 		);
+	}
+
+	#[test]
+	fn reads_a_frame_without_the_gpu_video_queue_times() {
+		// Moonshine omits both entirely when its GPU video queue reports no timestamps.
+		let frame: Line = serde_json::from_str(
+			r#"{"type":"frame","channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":true}"#,
+		)
+		.unwrap();
+		let sample = to_sample(&frame, Instant::now());
+		assert_eq!(sample.gpu_encode, None);
+		assert_eq!(sample.bitstream_ready, None);
+		assert!(sample.is_key_frame);
 	}
 
 	#[test]
@@ -496,12 +543,15 @@ mod tests {
 		let captured = std::time::SystemTime::now() - Duration::from_millis(5);
 		let us = captured.duration_since(std::time::UNIX_EPOCH).unwrap().as_micros();
 		let frame: Line = serde_json::from_str(&format!(
-			r#"{{"type":"frame","frame_number":42,"captured_unix_us":{us},"channel_wait_us":41,"import_us":28,"convert_us":190,"submit_us":35,"consumer_queue_us":12,"encode_wait_us":1630,"packetize_us":22,"send_us":48,"total_us":2010,"encoded_bytes":41666,"key_frame":false}}"#
+			r#"{{"type":"frame","frame_number":42,"captured_unix_us":{us},"content":"scrgb","channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":false}}"#
 		))
 		.unwrap();
 		let now = Instant::now();
 		let sample = to_sample(&frame, now);
 		assert_eq!(sample.seq, Some(42));
+		assert_eq!(sample.content, Some("scrgb"));
+		assert_eq!(sample.gpu_encode, None);
+		assert_eq!(sample.bitstream_ready, None);
 		let ago = now - sample.captured_at.unwrap();
 		assert!(
 			ago >= Duration::from_millis(5) && ago < Duration::from_millis(50),
