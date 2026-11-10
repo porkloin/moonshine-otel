@@ -20,9 +20,9 @@ the CLI, what each number means, and how the repository fits together. README.md
 
 `moonshine-otel watch` records a running Moonshine from its statistics socket (Moonshine's `[stats] socket`
 setting, default path `$XDG_RUNTIME_DIR/moonshine/stats.sock`). The socket carries one JSON object per line:
-`stream_started` (the stream's `generation` and `stats_version`, then resolution, fps, bitrate, codec, dynamic range, chroma), a `frame`
+`stream_started` (the format's `stats_version`, then resolution, fps, bitrate, codec, dynamic range, chroma), a `frame`
 per encoded frame with its stage timings, `stream_stopped`, and `lagged` when the reader fell behind. Every duration
-in a `frame` line is a number of seconds, and `gpu_encode` and `bitstream_ready` are left out entirely when
+in a `frame` line is a whole number of microseconds, and `gpu_encode` and `bitstream_ready` are left out entirely when
 Moonshine's GPU video queue reports no timestamps. The format is documented in Moonshine's
 `src/stats_socket.rs`, and `cli/src/watch.rs` parses it. Each stream is one run (`run_id`). With `--results-dir`,
 every stream leaves `<run_id>.json` and `<run_id>.frames.csv`; `compare` takes the directory. When Moonshine isn't listening,
@@ -34,7 +34,7 @@ it starts). Several readers can connect at once, so `watch --results-dir` works 
 ## Frame traces, host to client
 
 Moonshine's `frame` lines carry `frame_number` (the frame index it sends, which the client receives) and
-`captured_at` (seconds since the Unix epoch); `watch` uses them as the frame's `seq` and capture time (`frames.csv`
+`captured_at` (microseconds since the Unix epoch); `watch` uses them as the frame's `seq` and capture time (`frames.csv`
 writes the capture time as `captured_unix_us`). `content` uses Moonshine's color space names (`srgb`, `bt2020_pq`,
 `scrgb_linear`), which `watch` maps to the workloads' mode names (`sdr`, `hdr10`, `scrgb`).
 With `--stream-key-file PATH`, `watch` reads a key from PATH when each stream starts, and every frame with a number
