@@ -3,8 +3,8 @@
 //!
 //! Moonshine writes one JSON object per line to the socket set in its configuration's `[stats]`
 //! table: `stream_started` with the stream's parameters and the format's `stats_version`, a `frame`
-//! per encoded frame, and `stream_stopped`. Every stage time in a `frame` line is a number of
-//! seconds. Each stream becomes one run. The socket's peer is Moonshine's process, whose GPU and
+//! per encoded frame, and `stream_stopped`. Every stage time in a `frame` line is a whole number
+//! of microseconds. Each stream becomes one run. The socket's peer is Moonshine's process, whose GPU and
 //! CPU use is sampled alongside.
 
 use std::collections::BTreeMap;
@@ -75,28 +75,28 @@ enum Line {
 	Frame {
 		/// The frame index the client receives, so the two sides' records of a frame can be matched.
 		frame_number: u64,
-		/// When the frame was captured, in seconds since the Unix epoch.
-		captured_at: f64,
+		/// When the frame was captured, in microseconds since the Unix epoch.
+		captured_at: u64,
 		/// The captured content's color space by Moonshine's own names (`srgb`, `bt2020_pq`,
 		/// `scrgb_linear`); absent on a keyframe re-encoded without a new capture.
 		#[serde(default)]
 		content: Option<String>,
-		/// Every stage's time in seconds; Moonshine's `Duration`s serialized as floats.
-		channel_wait: f64,
-		import: f64,
-		convert: f64,
-		submit: f64,
-		consumer_queue: f64,
-		encode_wait: f64,
+		/// Every stage's time in whole microseconds.
+		channel_wait: u64,
+		import: u64,
+		convert: u64,
+		submit: u64,
+		consumer_queue: u64,
+		encode_wait: u64,
 		/// Times measured inside the GPU's video queue, sub-intervals of `encode_wait`; Moonshine
 		/// leaves both out entirely when that queue reports no timestamps.
 		#[serde(default)]
-		gpu_encode: Option<f64>,
+		gpu_encode: Option<u64>,
 		#[serde(default)]
-		bitstream_ready: Option<f64>,
-		packetize: f64,
-		send: f64,
-		total: f64,
+		bitstream_ready: Option<u64>,
+		packetize: u64,
+		send: u64,
+		total: u64,
 		encoded_bytes: u64,
 		is_key_frame: bool,
 	},
@@ -192,9 +192,9 @@ pub async fn watch(args: &WatchArgs) -> anyhow::Result<i32> {
 	Ok(0)
 }
 
-/// A stage's time, as Moonshine writes it: a number of seconds.
-fn seconds(s: f64) -> Duration {
-	Duration::from_secs_f64(s)
+/// A stage's time, as Moonshine writes it: a whole number of microseconds.
+fn micros(us: u64) -> Duration {
+	Duration::from_micros(us)
 }
 
 fn to_sample(frame: &Line, observed_at: Instant) -> FrameSample {
@@ -218,17 +218,17 @@ fn to_sample(frame: &Line, observed_at: Instant) -> FrameSample {
 		is_key_frame,
 	} = *frame
 	{
-		sample.channel_wait = seconds(channel_wait);
-		sample.import = seconds(import);
-		sample.convert = seconds(convert);
-		sample.submit = seconds(submit);
-		sample.consumer_queue = seconds(consumer_queue);
-		sample.encode_wait = seconds(encode_wait);
-		sample.gpu_encode = gpu_encode.map(seconds);
-		sample.bitstream_ready = bitstream_ready.map(seconds);
-		sample.packetize = seconds(packetize);
-		sample.send = seconds(send);
-		sample.total = seconds(total);
+		sample.channel_wait = micros(channel_wait);
+		sample.import = micros(import);
+		sample.convert = micros(convert);
+		sample.submit = micros(submit);
+		sample.consumer_queue = micros(consumer_queue);
+		sample.encode_wait = micros(encode_wait);
+		sample.gpu_encode = gpu_encode.map(micros);
+		sample.bitstream_ready = bitstream_ready.map(micros);
+		sample.packetize = micros(packetize);
+		sample.send = micros(send);
+		sample.total = micros(total);
 		sample.encoded_bytes = encoded_bytes;
 		sample.is_key_frame = is_key_frame;
 		sample.seq = Some(frame_number);
@@ -242,12 +242,10 @@ fn to_sample(frame: &Line, observed_at: Instant) -> FrameSample {
 		});
 		// Moonshine and moonshine-otel share the machine's wall clock; place the capture on this process's
 		// monotonic clock by how long ago it was.
-		sample.captured_at = Duration::try_from_secs_f64(captured_at).ok().and_then(|since_epoch| {
-			let ago = std::time::SystemTime::now()
-				.duration_since(std::time::UNIX_EPOCH + since_epoch)
-				.ok()?;
-			observed_at.checked_sub(ago)
-		});
+		sample.captured_at = std::time::SystemTime::now()
+			.duration_since(std::time::UNIX_EPOCH + micros(captured_at))
+			.ok()
+			.and_then(|ago| observed_at.checked_sub(ago));
 	}
 	sample
 }
@@ -495,15 +493,15 @@ mod tests {
 			}
 		);
 		let frame: Line = serde_json::from_str(
-			r#"{"type":"frame","frame_number":1,"captured_at":1793750400.5,"channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"gpu_encode":0.00112,"bitstream_ready":0.00145,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":false}"#,
+			r#"{"type":"frame","frame_number":1,"captured_at":1793750400500000,"channel_wait":41,"import":28,"convert":190,"submit":35,"consumer_queue":12,"encode_wait":1630,"gpu_encode":1120,"bitstream_ready":1450,"packetize":22,"send":48,"total":2010,"encoded_bytes":41666,"is_key_frame":false}"#,
 		)
 		.unwrap();
 		let sample = to_sample(&frame, Instant::now());
-		assert_eq!(sample.total, seconds(0.00201));
-		assert_eq!(sample.encode_wait, seconds(0.00163));
-		assert_eq!(sample.channel_wait, seconds(0.000041));
-		assert_eq!(sample.gpu_encode, Some(seconds(0.00112)));
-		assert_eq!(sample.bitstream_ready, Some(seconds(0.00145)));
+		assert_eq!(sample.total, micros(2010));
+		assert_eq!(sample.encode_wait, micros(1630));
+		assert_eq!(sample.channel_wait, micros(41));
+		assert_eq!(sample.gpu_encode, Some(micros(1120)));
+		assert_eq!(sample.bitstream_ready, Some(micros(1450)));
 		assert_eq!(sample.encoded_bytes, 41666);
 		assert!(!sample.is_key_frame);
 		assert_eq!(
@@ -520,7 +518,7 @@ mod tests {
 	fn reads_a_frame_without_the_gpu_video_queue_times() {
 		// Moonshine omits both entirely when its GPU video queue reports no timestamps.
 		let frame: Line = serde_json::from_str(
-			r#"{"type":"frame","frame_number":1,"captured_at":1793750400.5,"channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":true}"#,
+			r#"{"type":"frame","frame_number":1,"captured_at":1793750400500000,"channel_wait":41,"import":28,"convert":190,"submit":35,"consumer_queue":12,"encode_wait":1630,"packetize":22,"send":48,"total":2010,"encoded_bytes":41666,"is_key_frame":true}"#,
 		)
 		.unwrap();
 		let sample = to_sample(&frame, Instant::now());
@@ -542,9 +540,9 @@ mod tests {
 	#[test]
 	fn takes_the_frame_number_and_capture_time() {
 		let captured = std::time::SystemTime::now() - Duration::from_millis(5);
-		let secs = captured.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64();
+		let micros = captured.duration_since(std::time::UNIX_EPOCH).unwrap().as_micros();
 		let frame: Line = serde_json::from_str(&format!(
-			r#"{{"type":"frame","frame_number":42,"captured_at":{secs},"content":"scrgb_linear","channel_wait":0.000041,"import":0.000028,"convert":0.00019,"submit":0.000035,"consumer_queue":0.000012,"encode_wait":0.00163,"packetize":0.000022,"send":0.000048,"total":0.00201,"encoded_bytes":41666,"is_key_frame":false}}"#
+			r#"{{"type":"frame","frame_number":42,"captured_at":{micros},"content":"scrgb_linear","channel_wait":41,"import":28,"convert":190,"submit":35,"consumer_queue":12,"encode_wait":1630,"packetize":22,"send":48,"total":2010,"encoded_bytes":41666,"is_key_frame":false}}"#
 		))
 		.unwrap();
 		let now = Instant::now();
