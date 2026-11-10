@@ -897,7 +897,7 @@ dependencies = [
 
 [[package]]
 name = "moonshine-otel"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -918,7 +918,7 @@ dependencies = [
 
 [[package]]
 name = "moonshine-otel-exporter"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "anyhow",
  "clap",
