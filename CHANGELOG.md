@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/porkloin/moonshine-otel/compare/v1.0.0...v1.0.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **watch:** read Moonshine's stats durations as whole microseconds ([#4](https://github.com/porkloin/moonshine-otel/issues/4)) ([97bfd1d](https://github.com/porkloin/moonshine-otel/commit/97bfd1db3adb6a7e00baebbe7d7135ea3a2e8081))
+
 ## 1.0.0 (2026-11-08)
 
 
