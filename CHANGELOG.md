@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/porkloin/moonshine-otel/compare/v1.0.1...v1.0.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* **release:** keep Cargo.lock's own versions in step with releases ([#6](https://github.com/porkloin/moonshine-otel/issues/6)) ([00de664](https://github.com/porkloin/moonshine-otel/commit/00de66442c977c81326cc1cf8ab6179aafe401da))
+
 ## [1.0.1](https://github.com/porkloin/moonshine-otel/compare/v1.0.0...v1.0.1) (2026-11-10)
 
 
