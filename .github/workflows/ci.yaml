@@ -18,7 +18,7 @@ jobs:
       matrix:
         include:
           - name: test
-            run: cargo test --workspace && cargo build -p moonshine-otel-exporter --example synthetic
+            run: cargo test --workspace --locked && cargo build -p moonshine-otel-exporter --example synthetic
           - name: clippy
             run: cargo clippy --workspace --all-targets --all-features -- -D warnings
           - name: fmt

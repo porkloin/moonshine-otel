@@ -6,7 +6,19 @@
       "package-name": "moonshine-otel",
       "include-component-in-tag": false,
       "bump-minor-pre-major": true,
-      "extra-files": ["Cargo.toml"]
+      "extra-files": [
+        "Cargo.toml",
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value=='moonshine-otel')].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value=='moonshine-otel-exporter')].version"
+        }
+      ]
     }
   }
 }
