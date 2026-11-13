@@ -69,6 +69,17 @@ far) feeds `moonshine.client.bitrate` (bit/s per second), `moonshine.client.bitr
 `moonshine.client.bitrate.requested`. `moonshine.client.stream.start` and `.end` are when the stream's first and
 latest frames arrived (Unix seconds), so a dashboard can fit its time range to a run.
 
+Once the stream ends the client replays its decoded frames through its model of moonlight-qt's presenting (V-Sync,
+and the frame pacer) and writes a `display` line per frame and a `display_summary`. Each `display` line becomes a span
+in the frame's trace, `client: decoded to on screen` from decoding to the refresh that showed it, or a zero-length
+`client: dropped by the display`, both V-Sync's (moonlight-qt's default), with `display.judder` and the pacer's fate
+(`display.paced_shown`, `display.paced_wait_us`, `display.paced_judder`) on it; and feeds
+`moonshine.client.display.latency` (decoded to on screen), `moonshine.client.display.frames` (by `shown`: true,
+false) and `moonshine.client.display.judder` (frames that went up a refresh or more later than the stream's rate
+needs), each by `mode` (vsync, paced), counted after `--warmup` by when the frame decoded.
+`moonshine.client.display.refresh_rate` is the modelled display's rate. The `client` line (the client's build) puts
+`client.version` on its frame spans.
+
 `moonshine-otel app LOG --stream-key KEY [--label k=v]...` does the same for a test workload's log (clickflash's and
 hdrneon's `--log`, JSON lines with wall clock times): `moonshine.app.inputs` (by `kind`), `moonshine.app.flashes`,
 `moonshine.app.flash.duration` (input reaching the app to its flash's first frame going to the GPU) and
@@ -214,12 +225,14 @@ the two can't disagree, and its `targets.json`):
   `$__range` (the run's span) and `$fps`; `empty` is shown when it has no value.
 - targets: `{"metrics": {KEY: {"label", "unit", "better", "target", "acceptable"}}}`, a target per query key.
   `better` is `higher` or `lower`; units `frame intervals` (also shown in ms at the run's frame rate), `ms`, `%`
-  and counts.
+  and counts. A null `target` is a metric shown without a verdict (no thresholds yet).
 
 The output: a Hardware table from the run's `moonshine.test.info` samples (`role=host` and `role=client`, labels
 `gpu`, `driver`, `other_gpus`, `cpu`, `memory`, `os`, `kernel`, `network`, `machine`), the stream from `role=run`
 (`code`, `ref`, `commit`, `resolution`, `fps`, `bitrate`, `seconds`, `route`) and `moonshine_client_frames_total`
-by `workload`, the report card, then `--notes`. Runs are told apart by the `run` label: `--run` picks one of
+by `workload`, the tools it was made with (`harness_version`, `client_version`, `otel_version`, and this summary's own
+version when it's another), the report card, then `--notes`. Two runs made with different tool versions get a
+warning above the report card, since a metric's definition or the client's model can differ between them. Runs are told apart by the `run` label: `--run` picks one of
 several (a run per mode); `--baseline BUNDLE` sets another run beside it as A and B, and a run with `side="base"`
 streams gets test and baseline columns. Blocking HTTP, so main runs it in `spawn_blocking`.
 
