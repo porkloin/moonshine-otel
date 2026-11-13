@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/porkloin/moonshine-otel/compare/v1.0.2...v1.1.0) (2026-11-13)
+
+
+### Features
+
+* display metrics and spans, tool versions in the summary ([#8](https://github.com/porkloin/moonshine-otel/issues/8)) ([ac05c12](https://github.com/porkloin/moonshine-otel/commit/ac05c12ef98e0ecddfc2f9dda3bf1fd58ecb43e2))
+
 ## [1.0.2](https://github.com/porkloin/moonshine-otel/compare/v1.0.1...v1.0.2) (2026-11-10)
 
 
