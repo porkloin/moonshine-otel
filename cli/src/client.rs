@@ -100,6 +100,21 @@ enum Line {
 		/// 0 when unknown.
 		received_unix_us: u64,
 	},
+	/// The client's own build, the file's first line.
+	Client { version: String },
+	/// What a display would have done with a decoded frame, written once the stream ends: how long after it was
+	/// decoded it went on screen with V-Sync and with moonlight-qt's frame pacer (none: dropped, never shown), and
+	/// whether it went up a refresh or more later than the stream's rate needs (the frame before it held).
+	Display {
+		frame_number: u64,
+		decoded_unix_us: u64,
+		vsync_wait_us: Option<u64>,
+		vsync_judder: bool,
+		paced_wait_us: Option<u64>,
+		paced_judder: bool,
+	},
+	/// The display the frames were replayed on.
+	DisplaySummary { hz: u64 },
 	#[serde(other)]
 	Other,
 }
@@ -119,6 +134,7 @@ pub async fn client(args: &ClientArgs) -> anyhow::Result<i32> {
 		latest_receive_us: 0,
 		warmup_us: (args.warmup * 1e6) as u64,
 		clock: vec![KeyValue::new("clock.alignment", "unaligned: the client's own clock")],
+		version: None,
 	};
 	if out.tracer.is_none() && out.metrics.is_none() {
 		tracing::warn!("no export; nothing to do");
@@ -158,6 +174,10 @@ struct Metrics {
 	bitrate_requested: Gauge<f64>,
 	stream_start: Gauge<f64>,
 	stream_end: Gauge<f64>,
+	display_latency: Histogram<f64>,
+	display_frames: Counter<u64>,
+	display_judder: Counter<u64>,
+	display_refresh: Gauge<u64>,
 }
 
 impl Metrics {
@@ -232,6 +252,32 @@ impl Metrics {
 				.with_unit("s")
 				.with_description("When the stream's latest frame reached the client, seconds since the Unix epoch")
 				.build(),
+			display_latency: m
+				.f64_histogram("moonshine.client.display.latency")
+				.with_unit("s")
+				.with_description(
+					"From a frame decoding to a display showing it, by how it's presented (mode: vsync or paced), in the \
+					 client's model of moonlight-qt's presenting",
+				)
+				.build(),
+			display_frames: m
+				.u64_counter("moonshine.client.display.frames")
+				.with_description(
+					"Decoded frames a display showed or dropped (shown: true or false), by how they're presented (mode)",
+				)
+				.build(),
+			display_judder: m
+				.u64_counter("moonshine.client.display.judder")
+				.with_description(
+					"Frames that went on screen a refresh or more later than the stream's rate needs, the frame before \
+					 them held too long, by how they're presented (mode)",
+				)
+				.build(),
+			display_refresh: m
+				.u64_gauge("moonshine.client.display.refresh_rate")
+				.with_unit("Hz")
+				.with_description("The refresh rate of the display the client modelled")
+				.build(),
 		}
 	}
 }
@@ -251,6 +297,8 @@ struct Exporter<T> {
 	warmup_us: u64,
 	/// How the client's times line up with the host's, on every client span.
 	clock: Vec<KeyValue>,
+	/// The client's build, on its frame spans.
+	version: Option<KeyValue>,
 }
 
 fn at(us: u64) -> SystemTime {
@@ -347,6 +395,7 @@ where
 					attrs.push(KeyValue::new("warmup", true));
 				}
 				attrs.extend(self.clock.iter().cloned());
+				attrs.extend(self.version.clone());
 				let span = tracer
 					.span_builder("client frame")
 					.with_start_time(at(receive_unix_us))
@@ -500,6 +549,62 @@ where
 				}
 				cx.span().end_with_timestamp(at(decoded_unix_us.max(sent_unix_us)));
 			},
+			Line::Client { ref version } => {
+				tracing::info!("gamestream-test-client {version}");
+				self.version = Some(KeyValue::new("client.version", version.clone()));
+			},
+			Line::Display {
+				frame_number,
+				decoded_unix_us,
+				vsync_wait_us,
+				vsync_judder,
+				paced_wait_us,
+				paced_judder,
+			} => {
+				if let Some(m) = self.metrics_at(decoded_unix_us) {
+					for (mode, wait, judder) in [
+						("vsync", vsync_wait_us, vsync_judder),
+						("paced", paced_wait_us, paced_judder),
+					] {
+						let mode = KeyValue::new("mode", mode);
+						m.display_frames
+							.add(1, &self.with(&[mode.clone(), KeyValue::new("shown", wait.is_some())]));
+						if let Some(wait) = wait {
+							m.display_latency
+								.record(secs(wait), &self.with(std::slice::from_ref(&mode)));
+						}
+						if judder {
+							m.display_judder.add(1, &self.with(&[mode]));
+						}
+					}
+				}
+				// One span per frame, V-Sync's (moonlight-qt's default), with the pacer's fate on it.
+				let Some(tracer) = &self.tracer else { return };
+				let mut attrs = vec![
+					KeyValue::new("frame.number", frame_number as i64),
+					KeyValue::new("display.shown", vsync_wait_us.is_some()),
+					KeyValue::new("display.judder", vsync_judder),
+					KeyValue::new("display.paced_shown", paced_wait_us.is_some()),
+					KeyValue::new("display.paced_judder", paced_judder),
+				];
+				attrs.extend(paced_wait_us.map(|w| KeyValue::new("display.paced_wait_us", w as i64)));
+				let name = if vsync_wait_us.is_some() {
+					"client: decoded to on screen"
+				} else {
+					"client: dropped by the display"
+				};
+				tracer
+					.span_builder(name)
+					.with_start_time(at(decoded_unix_us))
+					.with_attributes(attrs)
+					.start_with_context(tracer, &self.frame_parent(frame_number))
+					.end_with_timestamp(at(decoded_unix_us + vsync_wait_us.unwrap_or(0)));
+			},
+			Line::DisplaySummary { hz } => {
+				if let Some(m) = &self.metrics {
+					m.display_refresh.record(hz, &self.attrs);
+				}
+			},
 			Line::Other => {},
 		}
 	}
@@ -574,6 +679,33 @@ mod tests {
 			serde_json::from_str(r#"{"type":"click","sent_unix_us":1,"decoded_unix_us":9,"received_unix_us":0}"#)
 				.unwrap();
 		assert!(matches!(click, Line::Click { decoded_unix_us: 9, .. }));
+		assert_eq!(
+			serde_json::from_str::<Line>(r#"{"type":"client","version":"96bfc47"}"#).unwrap(),
+			Line::Client {
+				version: "96bfc47".into()
+			}
+		);
+		assert_eq!(
+			serde_json::from_str::<Line>(
+				r#"{"type":"display","frame_number":100,"decoded_unix_us":7,"vsync_wait_us":6500,"vsync_judder":true,"paced_wait_us":null,"paced_judder":false}"#
+			)
+			.unwrap(),
+			Line::Display {
+				frame_number: 100,
+				decoded_unix_us: 7,
+				vsync_wait_us: Some(6500),
+				vsync_judder: true,
+				paced_wait_us: None,
+				paced_judder: false
+			}
+		);
+		assert_eq!(
+			serde_json::from_str::<Line>(
+				r#"{"type":"display_summary","hz":120,"fps":120,"vsync":{"shown":2399,"dropped":1,"judder":1,"latency_ms_p50":4.17,"latency_ms_p99":12.5},"paced":{"shown":2400,"dropped":0,"judder":0,"latency_ms_p50":12.5,"latency_ms_p99":12.5},"unix_us":9}"#
+			)
+			.unwrap(),
+			Line::DisplaySummary { hz: 120 }
+		);
 		assert_eq!(
 			serde_json::from_str::<Line>(r#"{"type":"something_new","x":1}"#).unwrap(),
 			Line::Other

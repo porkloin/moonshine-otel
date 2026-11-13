@@ -33,7 +33,7 @@ pub struct SummaryArgs {
 	#[arg(long)]
 	queries: PathBuf,
 	/// The targets they're scored against: {"metrics": {KEY: {"label", "unit", "better" ("higher" or "lower"), "target",
-	/// "acceptable"}}}.
+	/// "acceptable"}}}; a metric whose target is null is shown without a verdict.
 	#[arg(long)]
 	targets: PathBuf,
 	/// Markdown to add after the report card, e.g. the harness's checks.
@@ -316,6 +316,26 @@ pub fn summary(args: &SummaryArgs) -> anyhow::Result<i32> {
 	Ok(0)
 }
 
+/// The tools a run records its versions of (moonshine-test-headless's run labels), and their names.
+const TOOLS: [(&str, &str); 3] = [
+	("harness_version", "moonshine-test-headless"),
+	("client_version", "gamestream-test-client"),
+	("otel_version", "moonshine-otel"),
+];
+
+/// The tools a run was made with, and this summary's own moonshine-otel when it's another.
+fn tools(f: &BTreeMap<String, String>) -> String {
+	let mut parts: Vec<String> = TOOLS
+		.iter()
+		.map(|(key, name)| format!("{name} {}", f.get(*key).map_or("N/A", String::as_str)))
+		.collect();
+	let mine = env!("CARGO_PKG_VERSION");
+	if f.get("otel_version").is_none_or(|v| v.trim_start_matches('v') != mine) {
+		parts.push(format!("summarized by moonshine-otel {mine}"));
+	}
+	parts.join(", ")
+}
+
 fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> anyhow::Result<T> {
 	let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
 	serde_json::from_str(&text).with_context(|| format!("reading {}", path.display()))
@@ -459,6 +479,25 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 			frames.map_or("N/A".to_string(), |f| format!("{f:.0}")),
 			clock.map_or("N/A".to_string(), |c| format!("±{c:.2} ms")),
 		));
+		md.push_str(&format!("- {prefix}tools: {}\n", tools(&f)));
+	}
+	// Runs made with different tools can measure differently: a metric's definition, the client's model.
+	if let [a, b] = runs[..] {
+		let (fa, fb) = (facts(prom, &a.run, "run")?, facts(prom, &b.run, "run")?);
+		let differ: Vec<&str> = TOOLS
+			.iter()
+			.filter(|(key, _)| fa.get(*key) != fb.get(*key))
+			.map(|(_, name)| *name)
+			.collect();
+		if !differ.is_empty() {
+			md.push_str(&format!(
+				"\n> [!WARNING]\n> {} and {} were made with different versions of {}, so some figures may not be measured the \
+				 same way.\n",
+				a.label,
+				b.label,
+				differ.join(" and ")
+			));
+		}
 	}
 
 	// The report card: the board's tiles, for each side.
@@ -488,6 +527,8 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 		let label = target["label"].as_str().unwrap_or(&q.key);
 		let unit = target["unit"].as_str().unwrap_or("");
 		let higher = target["better"].as_str() == Some("higher");
+		// A metric with no thresholds yet is shown, not judged.
+		let judged = target["target"].is_number();
 		let (good, ok) = (
 			target["target"].as_f64().unwrap_or(0.0),
 			target["acceptable"].as_f64().unwrap_or(0.0),
@@ -501,6 +542,7 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 				.replace("$fps", &fps);
 			let value = first_value(prom, &expr)?;
 			row.push_str(&match value {
+				Some(v) if !judged => format!(" {} |", show(v, unit, q.decimals, interval_ms)),
 				Some(v) => {
 					let status = if higher {
 						if v >= good {
@@ -523,7 +565,11 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 			});
 		}
 		let op = if higher { "≥" } else { "≤" };
-		row.push_str(&format!(" {op} {} |\n", show(good, unit, q.decimals, interval_ms)));
+		if judged {
+			row.push_str(&format!(" {op} {} |\n", show(good, unit, q.decimals, interval_ms)));
+		} else {
+			row.push_str(" not judged yet |\n");
+		}
 		md.push_str(&row);
 	}
 	if !notes.trim().is_empty() {
@@ -532,7 +578,8 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 		md.push('\n');
 	}
 	md.push_str(
-		"\n<sub>🟢 at or past the target, 🟡 up to the acceptable value, 🔴 past it (thresholds in targets.json). \
+		"\n<sub>🟢 at or past the target, 🟡 up to the acceptable value, 🔴 past it (thresholds in targets.json; a metric \
+		 without them is shown, not judged). \
 		 Made by moonshine-otel summary from the run's telemetry, which is in its results.tar.gz.</sub>\n",
 	);
 	Ok(md)
@@ -573,6 +620,29 @@ fn cell(s: &str) -> String {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn names_the_tools() {
+		let f: BTreeMap<String, String> = [
+			("harness_version", "38daddb"),
+			("client_version", "60ae0cc"),
+			("otel_version", concat!("v", env!("CARGO_PKG_VERSION"))),
+		]
+		.into_iter()
+		.map(|(k, v)| (k.to_string(), v.to_string()))
+		.collect();
+		assert_eq!(
+			tools(&f),
+			format!(
+				"moonshine-test-headless 38daddb, gamestream-test-client 60ae0cc, moonshine-otel v{}",
+				env!("CARGO_PKG_VERSION")
+			)
+		);
+		assert!(tools(&BTreeMap::new()).ends_with(&format!(
+			"moonshine-otel N/A, summarized by moonshine-otel {}",
+			env!("CARGO_PKG_VERSION")
+		)));
+	}
 
 	#[test]
 	fn values_read_in_their_units() {
