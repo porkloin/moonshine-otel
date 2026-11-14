@@ -76,7 +76,10 @@ in the frame's trace, `client: decoded to on screen` from decoding to the refres
 (`display.paced_shown`, `display.paced_wait_us`, `display.paced_judder`) on it; and feeds
 `moonshine.client.display.latency` (decoded to on screen), `moonshine.client.display.frames` (by `shown`: true,
 false) and `moonshine.client.display.judder` (frames that went up a refresh or more later than the stream's rate
-needs), each by `mode` (vsync, paced), counted after `--warmup` by when the frame decoded.
+needs), each by `mode` (vsync, paced), counted after `--warmup` by when the frame decoded. Each `idr_request` line (a
+keyframe request the client sent) feeds `moonshine.client.idr_requests` by `cause` (start, loss, drop_limit,
+rfi_overflow, or the client's own client_decoder and client_queue); each frame's `queued` (frames waiting behind it
+for the decoder) is `frame.queued` on its span and feeds `moonshine.client.decode.queued`, the most so far.
 `moonshine.client.display.refresh_rate` is the modelled display's rate. The `client` line (the client's build) puts
 `client.version` on its frame spans.
 
@@ -225,7 +228,9 @@ the two can't disagree, and its `targets.json`):
   `$__range` (the run's span) and `$fps`; `empty` is shown when it has no value.
 - targets: `{"metrics": {KEY: {"label", "unit", "better", "target", "acceptable"}}}`, a target per query key.
   `better` is `higher` or `lower`; units `frame intervals` (also shown in ms at the run's frame rate), `ms`, `%`
-  and counts. A null `target` is a metric shown without a verdict (no thresholds yet).
+  and counts. A null `target` is a metric shown without a verdict (no thresholds yet). `"party": "client"` puts a
+  metric in a second table, The client: what the client machine did (its decoder, its display), not Moonshine's
+  doing; its null targets say "the client's".
 
 The output: a Hardware table from the run's `moonshine.test.info` samples (`role=host` and `role=client`, labels
 `gpu`, `driver`, `other_gpus`, `cpu`, `memory`, `os`, `kernel`, `network`, `machine`), the stream from `role=run`
