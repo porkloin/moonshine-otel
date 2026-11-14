@@ -54,7 +54,13 @@ enum Line {
 		/// 0 decoded, negative a decode error, positive decoded corrupt.
 		decode_status: i64,
 		recovery: bool,
+		/// Frames waiting behind it for the decoder when it went to it; absent from older clients.
+		#[serde(default)]
+		queued: i64,
 	},
+	/// A keyframe request the client sent, and why: `start`, `loss`, `drop_limit`, `rfi_overflow`, or the client's own
+	/// `client_decoder` (its decoder failed a frame) and `client_queue` (its decode queue overflowed).
+	IdrRequest { cause: String, unix_us: u64 },
 	/// The client's loss model started dropping this frame on purpose.
 	Drop { frame_number: u64, unix_us: u64 },
 	/// Frames never reached the decoder: the picture stood still from `after_frame` until `frame_number`.
@@ -135,6 +141,7 @@ pub async fn client(args: &ClientArgs) -> anyhow::Result<i32> {
 		warmup_us: (args.warmup * 1e6) as u64,
 		clock: vec![KeyValue::new("clock.alignment", "unaligned: the client's own clock")],
 		version: None,
+		queued_max: 0,
 	};
 	if out.tracer.is_none() && out.metrics.is_none() {
 		tracing::warn!("no export; nothing to do");
@@ -178,6 +185,8 @@ struct Metrics {
 	display_frames: Counter<u64>,
 	display_judder: Counter<u64>,
 	display_refresh: Gauge<u64>,
+	idr_requests: Counter<u64>,
+	queued: Gauge<u64>,
 }
 
 impl Metrics {
@@ -278,6 +287,17 @@ impl Metrics {
 				.with_unit("Hz")
 				.with_description("The refresh rate of the display the client modelled")
 				.build(),
+			idr_requests: m
+				.u64_counter("moonshine.client.idr_requests")
+				.with_description(
+					"Keyframe requests the client sent, by why (cause): start, loss, drop_limit, rfi_overflow, or the \
+					 client's own client_decoder and client_queue",
+				)
+				.build(),
+			queued: m
+				.u64_gauge("moonshine.client.decode.queued")
+				.with_description("The most frames waiting for the client's decoder behind one going to it, so far")
+				.build(),
 		}
 	}
 }
@@ -299,6 +319,8 @@ struct Exporter<T> {
 	clock: Vec<KeyValue>,
 	/// The client's build, on its frame spans.
 	version: Option<KeyValue>,
+	/// The most frames that have waited behind one for the decoder.
+	queued_max: u64,
 }
 
 fn at(us: u64) -> SystemTime {
@@ -352,7 +374,9 @@ where
 				decode_end_unix_us,
 				decode_status,
 				recovery,
+				queued,
 			} => {
+				self.queued_max = self.queued_max.max(queued.max(0) as u64);
 				self.first_receive_us.get_or_insert(receive_unix_us);
 				self.latest_receive_us = receive_unix_us;
 				let counted = self.metrics_at(receive_unix_us).is_some();
@@ -378,6 +402,7 @@ where
 						None => m.stream_start.record(secs(receive_unix_us), &self.attrs),
 					}
 					m.stream_end.record(secs(receive_unix_us), &self.attrs);
+					m.queued.record(self.queued_max, &self.attrs);
 				}
 				if counted {
 					self.last_receive_us = Some(receive_unix_us);
@@ -390,6 +415,7 @@ where
 					KeyValue::new("frame.bytes", bytes),
 					KeyValue::new("frame.decode_status", decode_status),
 					KeyValue::new("frame.recovery", recovery),
+					KeyValue::new("frame.queued", queued),
 				];
 				if !counted && self.warmup_us > 0 {
 					attrs.push(KeyValue::new("warmup", true));
@@ -549,6 +575,12 @@ where
 				}
 				cx.span().end_with_timestamp(at(decoded_unix_us.max(sent_unix_us)));
 			},
+			Line::IdrRequest { ref cause, unix_us } => {
+				if let Some(m) = self.metrics_at(unix_us) {
+					m.idr_requests
+						.add(1, &self.with(&[KeyValue::new("cause", cause.clone())]));
+				}
+			},
 			Line::Client { ref version } => {
 				tracing::info!("gamestream-test-client {version}");
 				self.version = Some(KeyValue::new("client.version", version.clone()));
@@ -679,6 +711,18 @@ mod tests {
 			serde_json::from_str(r#"{"type":"click","sent_unix_us":1,"decoded_unix_us":9,"received_unix_us":0}"#)
 				.unwrap();
 		assert!(matches!(click, Line::Click { decoded_unix_us: 9, .. }));
+		assert_eq!(
+			serde_json::from_str::<Line>(r#"{"type":"idr_request","cause":"client_queue","unix_us":3}"#).unwrap(),
+			Line::IdrRequest {
+				cause: "client_queue".into(),
+				unix_us: 3
+			}
+		);
+		let queued: Line = serde_json::from_str(
+			r#"{"type":"frame","frame_number":2,"frame_type":0,"bytes":1,"receive_unix_us":10,"enqueue_unix_us":20,"decode_start_unix_us":30,"decode_end_unix_us":40,"decode_status":0,"recovery":false,"queued":4}"#,
+		)
+		.unwrap();
+		assert!(matches!(queued, Line::Frame { queued: 4, .. }));
 		assert_eq!(
 			serde_json::from_str::<Line>(r#"{"type":"client","version":"96bfc47"}"#).unwrap(),
 			Line::Client {

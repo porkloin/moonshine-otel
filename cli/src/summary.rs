@@ -665,19 +665,21 @@ fn markdown(
 	let interval_ms = 1000.0 / fps.parse::<f64>().unwrap_or(60.0);
 	// With noise measured and two sides, whether they differ by more than repeat runs do.
 	let noise = noise.filter(|_| sides.len() == 2);
-	md.push_str("\n**Report card**\n\n| Metric |");
+	let mut header = String::from("| Metric |");
 	for side in sides {
-		md.push_str(&format!(
+		header.push_str(&format!(
 			" {} |",
 			if side.label.is_empty() { "Value" } else { &side.label }
 		));
 	}
 	if noise.is_some() {
-		md.push_str(" Change |");
+		header.push_str(" Change |");
 	}
-	md.push_str(" Target |\n|---|");
-	md.push_str(&"---|".repeat(sides.len() + 1 + usize::from(noise.is_some())));
-	md.push('\n');
+	header.push_str(" Target |\n|---|");
+	header.push_str(&"---|".repeat(sides.len() + 1 + usize::from(noise.is_some())));
+	header.push('\n');
+	// The stream's metrics (Moonshine's doing, and the network's), then the client machine's own (`"party": "client"`).
+	let (mut stream_rows, mut client_rows) = (String::new(), String::new());
 	let mut values = Vec::new();
 	for q in &queries.metrics {
 		let Some(target) = targets.metrics.get(&q.key) else {
@@ -685,6 +687,7 @@ fn markdown(
 		};
 		let label = target["label"].as_str().unwrap_or(&q.key);
 		let unit = target["unit"].as_str().unwrap_or("");
+		let clients = target["party"].as_str() == Some("client");
 		let higher = target["better"].as_str() == Some("higher");
 		// A metric with no thresholds yet is shown, not judged.
 		let judged = target["target"].is_number();
@@ -744,10 +747,23 @@ fn markdown(
 		let op = if higher { "≥" } else { "≤" };
 		if judged {
 			row.push_str(&format!(" {op} {} |\n", show(good, unit, q.decimals, interval_ms)));
+		} else if clients {
+			row.push_str(" the client's |\n");
 		} else {
 			row.push_str(" not judged yet |\n");
 		}
-		md.push_str(&row);
+		if clients { &mut client_rows } else { &mut stream_rows }.push_str(&row);
+	}
+	md.push_str("\n**Report card**\n\n");
+	md.push_str(&header);
+	md.push_str(&stream_rows);
+	if !client_rows.is_empty() {
+		md.push_str(
+			"\n**The client**: what the client machine did with the stream, its decoder and its display. Not Moonshine's \
+			 doing, so not judged against it; a slow client explains freezes and keyframes above.\n\n",
+		);
+		md.push_str(&header);
+		md.push_str(&client_rows);
 	}
 	if !notes.trim().is_empty() {
 		md.push('\n');
