@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/porkloin/moonshine-otel/compare/v1.1.0...v1.2.0) (2026-11-14)
+
+
+### Features
+
+* **summary:** retained baselines, calibration sides, noise and a Change column ([#10](https://github.com/porkloin/moonshine-otel/issues/10)) ([aaf0dc0](https://github.com/porkloin/moonshine-otel/commit/aaf0dc07ad10e6ad7fc490d8ead4e328f726dae6))
+
 ## [1.1.0](https://github.com/porkloin/moonshine-otel/compare/v1.0.2...v1.1.0) (2026-11-13)
 
 
