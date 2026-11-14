@@ -79,7 +79,10 @@ false) and `moonshine.client.display.judder` (frames that went up a refresh or m
 needs), each by `mode` (vsync, paced), counted after `--warmup` by when the frame decoded. Each `idr_request` line (a
 keyframe request the client sent) feeds `moonshine.client.idr_requests` by `cause` (start, loss, drop_limit,
 rfi_overflow, or the client's own client_decoder and client_queue); each frame's `queued` (frames waiting behind it
-for the decoder) is `frame.queued` on its span and feeds `moonshine.client.decode.queued`, the most so far.
+for the decoder) is `frame.queued` on its span and feeds `moonshine.client.decode.queued`, the most so far. With `--check-picture` (framestamp as the app), each `picture` line feeds
+`moonshine.client.picture.frames` by `result` (clean, corrupt, unreadable) and `moonshine.client.picture.recovery_corrupt`
+(the longest run of corrupt pictures from a recovery frame or keyframe on, so far); a corrupt one also becomes a
+`client: corrupt picture` span in its frame's trace, with the stamp it read and its worst tile's error.
 `moonshine.client.display.refresh_rate` is the modelled display's rate. The `client` line (the client's build) puts
 `client.version` on its frame spans.
 

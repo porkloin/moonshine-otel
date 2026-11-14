@@ -121,6 +121,19 @@ enum Line {
 	},
 	/// The display the frames were replayed on.
 	DisplaySummary { hz: u64 },
+	/// A decoded frame checked against the frame framestamp drew (`--check-picture`): whether its stamp could be read,
+	/// which frame it says, the worst tile's error in luma levels, whether that's corrupt, and how many frames in a row
+	/// have been corrupt since a recovery frame or keyframe should have made the picture whole.
+	Picture {
+		frame_number: u64,
+		readable: bool,
+		stamp: u64,
+		worst: f64,
+		corrupt: bool,
+		#[serde(default)]
+		recovery_run: u64,
+		unix_us: u64,
+	},
 	#[serde(other)]
 	Other,
 }
@@ -142,6 +155,7 @@ pub async fn client(args: &ClientArgs) -> anyhow::Result<i32> {
 		clock: vec![KeyValue::new("clock.alignment", "unaligned: the client's own clock")],
 		version: None,
 		queued_max: 0,
+		recovery_corrupt_max: 0,
 	};
 	if out.tracer.is_none() && out.metrics.is_none() {
 		tracing::warn!("no export; nothing to do");
@@ -187,6 +201,8 @@ struct Metrics {
 	display_refresh: Gauge<u64>,
 	idr_requests: Counter<u64>,
 	queued: Gauge<u64>,
+	pictures: Counter<u64>,
+	recovery_corrupt: Gauge<u64>,
 }
 
 impl Metrics {
@@ -294,6 +310,20 @@ impl Metrics {
 					 client's own client_decoder and client_queue",
 				)
 				.build(),
+			pictures: m
+				.u64_counter("moonshine.client.picture.frames")
+				.with_description(
+					"Decoded frames checked against the frame framestamp drew, by result: clean, corrupt, or \
+					 unreadable (no stamp)",
+				)
+				.build(),
+			recovery_corrupt: m
+				.u64_gauge("moonshine.client.picture.recovery_corrupt")
+				.with_description(
+					"The most frames in a row still corrupt from a recovery frame or keyframe on, so far: 1 is that \
+					 frame itself not recovering",
+				)
+				.build(),
 			queued: m
 				.u64_gauge("moonshine.client.decode.queued")
 				.with_description("The most frames waiting for the client's decoder behind one going to it, so far")
@@ -321,6 +351,8 @@ struct Exporter<T> {
 	version: Option<KeyValue>,
 	/// The most frames that have waited behind one for the decoder.
 	queued_max: u64,
+	/// The longest run of corrupt pictures from a recovery frame or keyframe on.
+	recovery_corrupt_max: u64,
 }
 
 fn at(us: u64) -> SystemTime {
@@ -575,6 +607,42 @@ where
 				}
 				cx.span().end_with_timestamp(at(decoded_unix_us.max(sent_unix_us)));
 			},
+			Line::Picture {
+				frame_number,
+				readable,
+				stamp,
+				worst,
+				corrupt,
+				recovery_run,
+				unix_us,
+			} => {
+				self.recovery_corrupt_max = self.recovery_corrupt_max.max(recovery_run);
+				if let Some(m) = self.metrics_at(unix_us) {
+					let result = match (readable, corrupt) {
+						(false, _) => "unreadable",
+						(true, true) => "corrupt",
+						(true, false) => "clean",
+					};
+					m.pictures.add(1, &self.with(&[KeyValue::new("result", result)]));
+					m.recovery_corrupt.record(self.recovery_corrupt_max, &self.attrs);
+				}
+				// Only the corrupt ones get a span, in the frame's trace: the rest would double the trace for nothing.
+				if !corrupt {
+					return;
+				}
+				let Some(tracer) = &self.tracer else { return };
+				tracer
+					.span_builder("client: corrupt picture")
+					.with_start_time(at(unix_us))
+					.with_attributes([
+						KeyValue::new("frame.number", frame_number as i64),
+						KeyValue::new("picture.stamp", stamp as i64),
+						KeyValue::new("picture.worst", worst),
+						KeyValue::new("picture.recovery_run", recovery_run as i64),
+					])
+					.start_with_context(tracer, &self.frame_parent(frame_number))
+					.end_with_timestamp(at(unix_us));
+			},
 			Line::IdrRequest { ref cause, unix_us } => {
 				if let Some(m) = self.metrics_at(unix_us) {
 					m.idr_requests
@@ -718,6 +786,18 @@ mod tests {
 				unix_us: 3
 			}
 		);
+		assert!(matches!(
+			serde_json::from_str::<Line>(
+				r#"{"type":"picture","frame_number":9,"readable":true,"stamp":412,"worst":31.5,"mean":4.1,"corrupt":true,"recovery_run":2,"check_ms":0.9,"unix_us":5}"#
+			)
+			.unwrap(),
+			Line::Picture {
+				stamp: 412,
+				corrupt: true,
+				recovery_run: 2,
+				..
+			}
+		));
 		let queued: Line = serde_json::from_str(
 			r#"{"type":"frame","frame_number":2,"frame_type":0,"bytes":1,"receive_unix_us":10,"enqueue_unix_us":20,"decode_start_unix_us":30,"decode_end_unix_us":40,"decode_status":0,"recovery":false,"queued":4}"#,
 		)
