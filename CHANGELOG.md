@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0](https://github.com/porkloin/moonshine-otel/compare/v1.2.0...v1.3.0) (2026-11-14)
+
+
+### Features
+
+* keyframe request causes, decode queue depth, and the client's own table in the summary ([#14](https://github.com/porkloin/moonshine-otel/issues/14)) ([a80b8a7](https://github.com/porkloin/moonshine-otel/commit/a80b8a7ce0de87e940267f86d4e447b7dbf7b29b))
+* **summary:** retained baselines, calibration sides, noise and a Change column ([#12](https://github.com/porkloin/moonshine-otel/issues/12)) ([6123e05](https://github.com/porkloin/moonshine-otel/commit/6123e05e1657d6185bd0f98633cd7dfbb73ec686))
+
 ## [1.2.0](https://github.com/porkloin/moonshine-otel/compare/v1.1.0...v1.2.0) (2026-11-14)
 
 
