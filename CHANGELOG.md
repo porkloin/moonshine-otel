@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/porkloin/moonshine-otel/compare/v1.3.0...v1.4.0) (2026-11-14)
+
+
+### Features
+
+* picture checks: clean, corrupt and unreadable frames, and corruption after recovery ([#15](https://github.com/porkloin/moonshine-otel/issues/15)) ([4bfaa56](https://github.com/porkloin/moonshine-otel/commit/4bfaa56c8f48a670194843a89c7a5c8c09a88d5d))
+
 ## [1.3.0](https://github.com/porkloin/moonshine-otel/compare/v1.2.0...v1.3.0) (2026-11-14)
 
 
