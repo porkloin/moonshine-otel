@@ -234,7 +234,18 @@ by `workload`, the tools it was made with (`harness_version`, `client_version`, 
 version when it's another), the report card, then `--notes`. Two runs made with different tool versions get a
 warning above the report card, since a metric's definition or the client's model can differ between them. Runs are told apart by the `run` label: `--run` picks one of
 several (a run per mode); `--baseline BUNDLE` sets another run beside it as A and B, and a run with `side="base"`
-streams gets test and baseline columns. Blocking HTTP, so main runs it in `spawn_blocking`.
+streams gets test and baseline columns. A retained baseline (moonshine-test-headless keeps a run's baseline streams
+and reuses them) is `--baseline BUNDLE --baseline-run RUN --baseline-side base`: that run's `side="base"` streams as
+this run's baseline, named by its `baseline` fact. A run whose `role=run` facts name a `baseline_run` that's in the
+same bundle (the harness copies a reused baseline's telemetry into the run's) gets that run's baseline streams as its
+baseline without any option, and a `noise.json` beside the bundle's `logs/otlp` is read as `--noise` when that's not
+given. Without `--run`, the run is the latest by when its first stream started. `--side NAME` (repeatable) sets sides of the one run beside each
+other instead (a calibration's repeats: `base`, `base-2`, ...), and `--noise-out FILE` writes, per report card metric,
+each side's value, their mean and their spread (largest less smallest) as JSON. `--noise FILE` reads one: with two
+sides, a Change column gives test less baseline and calls it within noise, better or worse (by the target's `better`).
+Within noise is within the larger of 1.5 × the spread (a few repeats see less than the whole range), 2% of the
+baseline, and half the last digit shown (so a metric that didn't vary across the repeats doesn't call a rounding a
+change). Blocking HTTP, so main runs it in `spawn_blocking`.
 
 ## CLI
 

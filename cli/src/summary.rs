@@ -2,7 +2,9 @@
 //! spool in it) as Markdown for a pull request. The bundle is loaded into a throwaway local Prometheus, and the
 //! harness's queries (`--queries`, which its board's generator writes beside the board, so the summary and the board
 //! can't disagree) are run against it and scored against its targets (`--targets`). With `--baseline`, a second bundle is set beside it;
-//! without, a run's own baseline streams (side=base) are, when it has them.
+//! without, a run's own baseline streams (side=base) are, when it has them. `--side` sets any of a run's sides beside
+//! each other instead (a calibration's repeats), `--noise-out` writes how far each metric varied across them, and
+//! `--noise` uses such a file to say whether test and baseline differ by more than that.
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
@@ -25,6 +27,24 @@ pub struct SummaryArgs {
 	/// Another run's bundle to set beside it (another build, or another machine).
 	#[arg(long)]
 	baseline: Option<PathBuf>,
+	/// With --baseline: its run to use, when it has several (else the one the run's own bundle doesn't have).
+	#[arg(long, requires = "baseline")]
+	baseline_run: Option<String>,
+	/// With --baseline: only that run's streams of this side, e.g. `base` for a retained baseline (the baseline streams
+	/// of an earlier run), set beside this run as its baseline.
+	#[arg(long, requires = "baseline")]
+	baseline_side: Option<String>,
+	/// These sides of the run beside each other, instead of test and baseline, e.g. a calibration's repeats: --side
+	/// base --side base-2. Repeatable.
+	#[arg(long = "side", conflicts_with = "baseline")]
+	sides: Vec<String>,
+	/// How much each metric varies from run to run (a `--noise-out` file): with two sides, a Change column says whether
+	/// they differ by more than that.
+	#[arg(long)]
+	noise: Option<PathBuf>,
+	/// Write how much each metric varied across the sides (two or more) to this file, as JSON.
+	#[arg(long)]
+	noise_out: Option<PathBuf>,
 	/// The run to summarize, when the bundle has several (a run per mode); the latest by default.
 	#[arg(long)]
 	run: Option<String>,
@@ -197,7 +217,15 @@ impl Prom {
 			.collect())
 	}
 
+	/// The runs, oldest first (by when their first stream started; by name for runs without that).
 	fn runs(&self) -> anyhow::Result<Vec<String>> {
+		let started: BTreeMap<String, f64> = self
+			.query(&format!(
+				r#"min by (run) (last_over_time(moonshine_client_stream_start_seconds{{run!=""}}[{LOOKBACK}]))"#
+			))?
+			.into_iter()
+			.filter_map(|(m, v)| Some((m.get("run")?.clone(), v)))
+			.collect();
 		let mut runs: Vec<String> = self
 			.query(&format!(
 				r#"group by (run) (last_over_time(moonshine_client_frames_total{{run!=""}}[{LOOKBACK}]))"#
@@ -205,7 +233,12 @@ impl Prom {
 			.into_iter()
 			.filter_map(|(m, _)| m.get("run").cloned())
 			.collect();
-		runs.sort();
+		runs.sort_by(|a, b| {
+			let (x, y) = (started.get(a).copied(), started.get(b).copied());
+			x.partial_cmp(&y)
+				.unwrap_or(std::cmp::Ordering::Equal)
+				.then_with(|| a.cmp(b))
+		});
 		Ok(runs)
 	}
 }
@@ -236,7 +269,75 @@ fn spool(bundle: &Path, work: &Path) -> anyhow::Result<PathBuf> {
 struct Side {
 	run: String,
 	sel: String,
-	label: &'static str,
+	label: String,
+	/// The side is its run's baseline streams: its code is the run's `baseline` fact, not its `code`.
+	base_of: bool,
+}
+
+/// How much each report card metric varied across repeated runs of the same build (`--noise-out`, read by `--noise`).
+#[derive(Debug, serde::Serialize, Deserialize, PartialEq)]
+struct Noise {
+	/// The sides it was measured across.
+	sides: Vec<String>,
+	metrics: BTreeMap<String, NoiseMetric>,
+}
+
+#[derive(Debug, serde::Serialize, Deserialize, PartialEq)]
+struct NoiseMetric {
+	/// Each side's value, where it had one.
+	values: Vec<f64>,
+	mean: f64,
+	/// The largest less the smallest: a difference within it is one repeat runs show anyway.
+	spread: f64,
+}
+
+impl Noise {
+	/// From each metric's value per side (in `sides` order); a metric needs two values to have a spread.
+	fn measure(sides: Vec<String>, values: &[(String, Vec<Option<f64>>)]) -> Self {
+		let metrics = values
+			.iter()
+			.filter_map(|(key, vs)| {
+				let vs: Vec<f64> = vs.iter().flatten().copied().collect();
+				if vs.len() < 2 {
+					return None;
+				}
+				let (lo, hi) = vs
+					.iter()
+					.fold((f64::MAX, f64::MIN), |(lo, hi), &v| (lo.min(v), hi.max(v)));
+				let mean = vs.iter().sum::<f64>() / vs.len() as f64;
+				Some((
+					key.clone(),
+					NoiseMetric {
+						values: vs,
+						mean,
+						spread: hi - lo,
+					},
+				))
+			})
+			.collect();
+		Noise { sides, metrics }
+	}
+}
+
+/// How far apart test and baseline can be and still be noise: the spread the repeats showed, by half again (a few
+/// repeats see less than the full range), but at least 2% of the baseline and half the last digit shown, so a
+/// metric that happened not to vary doesn't call every rounding a change.
+fn tolerance(spread: f64, baseline: f64, decimals: usize) -> f64 {
+	(spread * 1.5)
+		.max(baseline.abs() * 0.02)
+		.max(0.5 * 10f64.powi(-(decimals as i32)))
+}
+
+/// Whether `a` differs from `b` by more than `tolerance`: "within noise", "better" or "worse".
+fn change(a: f64, b: f64, tolerance: f64, higher_better: bool) -> &'static str {
+	let d = a - b;
+	if d.abs() <= tolerance + 1e-9 {
+		"within noise"
+	} else if (d > 0.0) == higher_better {
+		"better"
+	} else {
+		"worse"
+	}
 }
 
 pub fn summary(args: &SummaryArgs) -> anyhow::Result<i32> {
@@ -248,7 +349,8 @@ pub fn summary(args: &SummaryArgs) -> anyhow::Result<i32> {
 	let work = std::env::temp_dir().join(format!("moonshine-otel-summary-{}", std::process::id()));
 	let prom = Prom::start(&args.prometheus, work.join("prometheus"))?;
 
-	prom.ingest(&spool(&args.bundle, &work.join("a"))?)?;
+	let a_spool = spool(&args.bundle, &work.join("a"))?;
+	prom.ingest(&a_spool)?;
 	let a_runs = prom.runs()?;
 	let a_run = match &args.run {
 		Some(run) if a_runs.contains(run) => run.clone(),
@@ -260,24 +362,49 @@ pub fn summary(args: &SummaryArgs) -> anyhow::Result<i32> {
 			)
 		})?,
 	};
+	let side = |run: &str, side: Option<&str>, label: &str| Side {
+		sel: match side {
+			Some(sd) => format!(r#"run="{run}", side="{sd}""#),
+			None => format!(r#"run="{run}""#),
+		},
+		run: run.to_string(),
+		label: label.to_string(),
+		base_of: side.is_some_and(|sd| sd == "base" || sd.starts_with("base-")),
+	};
 	let mut sides = Vec::new();
-	if let Some(baseline) = &args.baseline {
+	if !args.sides.is_empty() {
+		for sd in &args.sides {
+			sides.push(side(&a_run, Some(sd), sd));
+		}
+	} else if let Some(baseline) = &args.baseline {
 		prom.ingest(&spool(baseline, &work.join("b"))?)?;
-		let b_run = prom
-			.runs()?
-			.into_iter()
-			.find(|r| !a_runs.contains(r))
-			.context("the baseline bundle has no run of its own (is it the same run?)")?;
-		sides.push(Side {
-			sel: format!(r#"run="{a_run}""#),
-			run: a_run.clone(),
-			label: "A",
-		});
-		sides.push(Side {
-			sel: format!(r#"run="{b_run}""#),
-			run: b_run,
-			label: "B",
-		});
+		let runs = prom.runs()?;
+		let b_run = match &args.baseline_run {
+			Some(run) if runs.contains(run) && !a_runs.contains(run) => run.clone(),
+			Some(run) => bail!("{} has no run {run:?} of its own", baseline.display()),
+			None => runs
+				.into_iter()
+				.find(|r| !a_runs.contains(r))
+				.context("the baseline bundle has no run of its own (is it the same run?)")?,
+		};
+		match args.baseline_side.as_deref() {
+			// A retained baseline: an earlier run's baseline streams, as this run's baseline.
+			Some(sd) => {
+				sides.push(side(&a_run, None, "test"));
+				sides.push(side(&b_run, Some(sd), "baseline"));
+			},
+			None => {
+				sides.push(side(&a_run, None, "A"));
+				sides.push(side(&b_run, None, "B"));
+			},
+		}
+	} else if let Some(b_run) = facts(&prom, &a_run, "run")?
+		.get("baseline_run")
+		.filter(|r| a_runs.contains(*r))
+	{
+		// The run reused a retained baseline, and its bundle carries it.
+		sides.push(side(&a_run, None, "test"));
+		sides.push(side(b_run, Some("base"), "baseline"));
 	} else {
 		let has_base = !prom
 			.query(&format!(
@@ -285,30 +412,32 @@ pub fn summary(args: &SummaryArgs) -> anyhow::Result<i32> {
 			))?
 			.is_empty();
 		if has_base {
-			sides.push(Side {
-				sel: format!(r#"run="{a_run}", side="test""#),
-				run: a_run.clone(),
-				label: "test",
-			});
-			sides.push(Side {
-				sel: format!(r#"run="{a_run}", side="base""#),
-				run: a_run.clone(),
-				label: "baseline",
-			});
+			sides.push(side(&a_run, Some("test"), "test"));
+			sides.push(side(&a_run, Some("base"), "baseline"));
 		} else {
-			sides.push(Side {
-				sel: format!(r#"run="{a_run}""#),
-				run: a_run.clone(),
-				label: "",
-			});
+			sides.push(side(&a_run, None, ""));
 		}
 	}
+	// --noise, or the noise.json a results folder carries beside its logs/otlp (a run that reused a calibrated baseline).
+	let carried = a_spool
+		.ends_with("logs/otlp")
+		.then(|| a_spool.join("../../noise.json"))
+		.filter(|p| p.is_file());
+	let noise: Option<Noise> = args.noise.clone().or(carried).as_deref().map(read_json).transpose()?;
 
 	let notes = match &args.notes {
 		Some(path) => std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?,
 		None => String::new(),
 	};
-	let md = markdown(&prom, &queries, &targets, &sides, &notes)?;
+	let (md, values) = markdown(&prom, &queries, &targets, &sides, &notes, noise.as_ref())?;
+	if let Some(path) = &args.noise_out {
+		if sides.len() < 2 {
+			bail!("--noise-out needs two sides or more to measure across");
+		}
+		let noise = Noise::measure(sides.iter().map(|s| s.label.clone()).collect(), &values);
+		std::fs::write(path, serde_json::to_string_pretty(&noise)? + "\n")
+			.with_context(|| format!("writing {}", path.display()))?;
+	}
 	match &args.out {
 		Some(path) => std::fs::write(path, &md).with_context(|| format!("writing {}", path.display()))?,
 		None => std::io::stdout().write_all(md.as_bytes())?,
@@ -357,23 +486,41 @@ fn first_value(prom: &Prom, expr: &str) -> anyhow::Result<Option<f64>> {
 	Ok(prom.query(expr)?.into_iter().next().map(|(_, v)| v))
 }
 
-fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], notes: &str) -> anyhow::Result<String> {
+/// The Markdown, and each report card metric's value per side (by key, in `sides` order).
+type Values = Vec<(String, Vec<Option<f64>>)>;
+
+fn markdown(
+	prom: &Prom,
+	queries: &Queries,
+	targets: &Targets,
+	sides: &[Side],
+	notes: &str,
+	noise: Option<&Noise>,
+) -> anyhow::Result<(String, Values)> {
 	let mut md = String::new();
 	let a = &sides[0];
 	let a_run_facts = facts(prom, &a.run, "run")?;
-	let build = |f: &BTreeMap<String, String>, run: &str| f.get("code").cloned().unwrap_or_else(|| run.to_string());
+	// A side's code: a baseline side's is its run's `baseline` fact.
+	let build = |f: &BTreeMap<String, String>, side: &Side| {
+		f.get(if side.base_of { "baseline" } else { "code" })
+			.cloned()
+			.unwrap_or_else(|| side.run.clone())
+	};
 	let title = match sides.get(1) {
+		// A calibration: the baseline's streams, repeated.
+		Some(_) if a.base_of => format!("{}, {} repeats", build(&a_run_facts, a), sides.len()),
 		Some(b) if b.run != a.run => format!(
-			"{} vs {}",
-			build(&a_run_facts, &a.run),
-			build(&facts(prom, &b.run, "run")?, &b.run)
+			"{} vs {}{}",
+			build(&a_run_facts, a),
+			build(&facts(prom, &b.run, "run")?, b),
+			if b.base_of { " (retained baseline)" } else { "" }
 		),
 		Some(_) => format!(
 			"{} vs its baseline {}",
-			build(&a_run_facts, &a.run),
+			build(&a_run_facts, a),
 			a_run_facts.get("baseline").cloned().unwrap_or_default()
 		),
-		None => build(&a_run_facts, &a.run),
+		None => build(&a_run_facts, a),
 	};
 	md.push_str(&format!("### Moonshine test: {title}\n\n"));
 
@@ -457,11 +604,17 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 			String::new()
 		};
 		let chaos = f.get("chaos").map(|c| format!(", chaos {c}")).unwrap_or_default();
+		// A retained baseline's code is the earlier run's baseline, which it names by its code alone.
+		let code = if side.base_of && side.run != a.run {
+			format!("{} (retained, from run {})", get("baseline"), side.run)
+		} else if a.base_of {
+			// A calibration streams only the baseline.
+			get("baseline")
+		} else {
+			format!("{} ({}, commit {})", get("code"), get("ref"), get("commit"))
+		};
 		md.push_str(&format!(
-			"- {prefix}{} ({}, commit {}), {} at {} fps, {}, streams of {} each, route {}{}\n",
-			get("code"),
-			get("ref"),
-			get("commit"),
+			"- {prefix}{code}, {} at {} fps, {}, streams of {} each, route {}{}\n",
 			get("resolution"),
 			get("fps"),
 			get("bitrate"),
@@ -510,16 +663,22 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 		.find_map(|(m, _)| m.get("target_fps").cloned())
 		.unwrap_or_else(|| "60".to_string());
 	let interval_ms = 1000.0 / fps.parse::<f64>().unwrap_or(60.0);
+	// With noise measured and two sides, whether they differ by more than repeat runs do.
+	let noise = noise.filter(|_| sides.len() == 2);
 	md.push_str("\n**Report card**\n\n| Metric |");
 	for side in sides {
 		md.push_str(&format!(
 			" {} |",
-			if side.label.is_empty() { "Value" } else { side.label }
+			if side.label.is_empty() { "Value" } else { &side.label }
 		));
 	}
+	if noise.is_some() {
+		md.push_str(" Change |");
+	}
 	md.push_str(" Target |\n|---|");
-	md.push_str(&"---|".repeat(sides.len() + 1));
+	md.push_str(&"---|".repeat(sides.len() + 1 + usize::from(noise.is_some())));
 	md.push('\n');
+	let mut values = Vec::new();
 	for q in &queries.metrics {
 		let Some(target) = targets.metrics.get(&q.key) else {
 			continue;
@@ -534,6 +693,7 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 			target["acceptable"].as_f64().unwrap_or(0.0),
 		);
 		let mut row = format!("| {} |", capitalized(label));
+		let mut row_values = Vec::new();
 		for side in sides {
 			let expr = q
 				.expr
@@ -541,6 +701,7 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 				.replace("$__range", LOOKBACK)
 				.replace("$fps", &fps);
 			let value = first_value(prom, &expr)?;
+			row_values.push(value);
 			row.push_str(&match value {
 				Some(v) if !judged => format!(" {} |", show(v, unit, q.decimals, interval_ms)),
 				Some(v) => {
@@ -564,6 +725,22 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 				None => format!(" {} |", q.empty),
 			});
 		}
+		if let Some(n) = noise {
+			row.push_str(&match (row_values[0], row_values[1], n.metrics.get(&q.key)) {
+				(Some(a), Some(b), Some(m)) => {
+					let tol = tolerance(m.spread, b, q.decimals);
+					format!(
+						" {} · {} (±{}) |",
+						signed(a - b, unit, q.decimals),
+						change(a, b, tol, higher),
+						short(tol, unit, q.decimals)
+					)
+				},
+				(Some(_), Some(_), None) => " no noise measured |".to_string(),
+				_ => " |".to_string(),
+			});
+		}
+		values.push((q.key.clone(), row_values));
 		let op = if higher { "≥" } else { "≤" };
 		if judged {
 			row.push_str(&format!(" {op} {} |\n", show(good, unit, q.decimals, interval_ms)));
@@ -582,7 +759,40 @@ fn markdown(prom: &Prom, queries: &Queries, targets: &Targets, sides: &[Side], n
 		 without them is shown, not judged). \
 		 Made by moonshine-otel summary from the run's telemetry, which is in its results.tar.gz.</sub>\n",
 	);
-	Ok(md)
+	if let Some(n) = noise {
+		md.push_str(&format!(
+			"<sub>Change: test less baseline; within noise when no more than ± (half again as much as the baseline \
+			 varied across {} repeat runs, and at least 2% of it).</sub>\n",
+			n.sides.len()
+		));
+	}
+	Ok((md, values))
+}
+
+/// A value in its unit, briefly (frame intervals without the milliseconds), for the Change column.
+fn short(v: f64, unit: &str, decimals: usize) -> String {
+	let n = format!("{v:.decimals$}");
+	match unit {
+		"frame intervals" => format!("{n} frames"),
+		"ms" => format!("{n} ms"),
+		"%" | "% of requested" => format!("{n}%"),
+		_ => n,
+	}
+}
+
+/// A difference with its sign, and 0 for one that rounds to nothing.
+fn signed(d: f64, unit: &str, decimals: usize) -> String {
+	let s = short(d.abs(), unit, decimals);
+	if format!("{:.decimals$}", d.abs())
+		.trim_start_matches(['0', '.'])
+		.is_empty()
+	{
+		short(0.0, unit, decimals)
+	} else if d > 0.0 {
+		format!("+{s}")
+	} else {
+		format!("−{s}")
+	}
 }
 
 /// A value in its unit; frame intervals also in milliseconds at the run's frame rate.
@@ -620,6 +830,42 @@ fn cell(s: &str) -> String {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn measures_noise_across_sides() {
+		let values = vec![
+			("latency".to_string(), vec![Some(4.0), Some(4.6), Some(4.2)]),
+			("judder".to_string(), vec![Some(1.0), None, None]),
+			("lost".to_string(), vec![None, None, None]),
+		];
+		let n = Noise::measure(vec!["base".into(), "base-2".into(), "base-3".into()], &values);
+		let m = &n.metrics["latency"];
+		assert_eq!(m.values, vec![4.0, 4.6, 4.2]);
+		assert!((m.spread - 0.6).abs() < 1e-9 && (m.mean - 4.266_666).abs() < 1e-3);
+		// One value, or none, is no spread.
+		assert!(!n.metrics.contains_key("judder") && !n.metrics.contains_key("lost"));
+	}
+
+	#[test]
+	fn judges_a_change_against_the_noise() {
+		// Lower is better: 0.5 up within 0.6 is noise, 1.0 up is worse, 1.0 down better.
+		assert_eq!(change(4.5, 4.0, 0.6, false), "within noise");
+		assert_eq!(change(5.0, 4.0, 0.6, false), "worse");
+		assert_eq!(change(3.0, 4.0, 0.6, false), "better");
+		assert_eq!(change(5.0, 4.0, 0.6, true), "better");
+		assert_eq!(change(4.0, 4.0, 0.0, false), "within noise");
+		// The tolerance: half again the spread, else 2% of the baseline, else half the last digit shown.
+		assert!((tolerance(0.4, 4.0, 2) - 0.6).abs() < 1e-9);
+		assert!((tolerance(0.0, 4.0, 2) - 0.08).abs() < 1e-9);
+		assert!((tolerance(0.0, 0.0, 0) - 0.5).abs() < 1e-9);
+		// A recovery 0.01 frames slower than a baseline at 4 frames that didn't vary: noise, not worse.
+		assert_eq!(change(4.01, 4.0, tolerance(0.0, 4.0, 2), false), "within noise");
+		// One lost frame against none is a change.
+		assert_eq!(change(1.0, 0.0, tolerance(0.0, 0.0, 0), false), "worse");
+		assert_eq!(signed(-0.001, "frame intervals", 2), "0.00 frames");
+		assert_eq!(signed(2.13, "ms", 2), "+2.13 ms");
+		assert_eq!(signed(-1.5, "%", 1), "−1.5%");
+	}
 
 	#[test]
 	fn names_the_tools() {
