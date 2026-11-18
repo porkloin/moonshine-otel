@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/porkloin/moonshine-otel/compare/v1.4.0...v1.4.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **summary:** plainer wording in the client section and legends ([#17](https://github.com/porkloin/moonshine-otel/issues/17)) ([e979d5b](https://github.com/porkloin/moonshine-otel/commit/e979d5b0930544cb63b6ed34f70ea3dbfecd4b5c))
+
 ## [1.4.0](https://github.com/porkloin/moonshine-otel/compare/v1.3.0...v1.4.0) (2026-11-14)
 
 
