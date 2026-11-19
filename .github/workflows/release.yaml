@@ -29,6 +29,10 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
+        with:
+          # Pull requests opened or updated with GITHUB_TOKEN don't get CI jobs, so the release pull request
+          # needs a token that does: a fine-grained PAT with contents and pull-requests write on this repo.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
   build:
     needs: release-please
